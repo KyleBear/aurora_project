@@ -33,18 +33,34 @@ from .views import parent_detail_search
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/login/', login, name='login'),
-    path('api/signup/', signup, name='signup'),
-    path('api/password_reset/', password_reset, name='password_reset'),
-    path('api/password_change/', password_change, name='password_change'),
-    path('api/delete_user/', delete_user, name='delete_user'),
-    
-    path('api/admin_list/', admin_list, name='admin_list'),
-    path('api/admin_create/', admin_create, name='admin_create'),
-    path('api/admin_detail_search/', admin_detail_search, name='admin_detail_search'),
-    path('api/admin_detail_revise/', admin_detail_revise, name='admin_detail_revise'),
-    path('api/parent_list/', parent_list, name='parent_list'),
-    path('api/parent_detail_search/', parent_detail_search, name='parent_detail_search'),
+
+    # path('api/login/', login, name='login'),
+    # path('api/signup/', signup, name='signup'),
+    # path('api/password_reset/', password_reset, name='password_reset'),
+    # path('api/password_change/', password_change, name='password_change'),
+    # path('api/delete_user/', delete_user, name='delete_user'),
+
+    path('api/public/login', login, name='login'),
+    path('api/public/signup', signup, name='signup'),
+    path('api/public/password-reset', password_reset, name='password_reset'),
+    path('api/public/password-change', password_change, name='password_change'),
+    path('api/public/delete-user', delete_user, name='delete_user'),
+
+
+    # path('api/admin_list/', admin_list, name='admin_list'),
+    # path('api/admin_create/', admin_create, name='admin_create'),
+    # path('api/admin_detail_search/', admin_detail_search, name='admin_detail_search'),
+    # path('api/admin_detail_revise/', admin_detail_revise, name='admin_detail_revise'),
+    # path('api/parent_list/', parent_list, name='parent_list'),
+    # path('api/parent_detail_search/', parent_detail_search, name='parent_detail_search'),
+
+    path('api/admin-list/', admin_list, name='admin_list'),
+    path('api/admin-create/', admin_create, name='admin_create'),
+    path('api/admin-detail-search/', admin_detail_search, name='admin_detail_search'),
+    path('api/admin-detail-revise/', admin_detail_revise, name='admin_detail_revise'),
+    path('api/parent-list/', parent_list, name='parent_list'),
+    path('api/parent-detail-search/', parent_detail_search, name='parent_detail_search'),
+
 #    path('api/profile/', profile, name='profile'),
 
 ]

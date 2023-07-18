@@ -26,11 +26,38 @@ import pymysql
 pymysql.install_as_MySQLdb()
 from django.views.decorators.csrf import csrf_exempt
 
+# back 7
+# 해시 비밀번호 생성 
+from django.contrib.auth.hashers import make_password
+# 해시 비밀번호 점검 import
+from django.contrib.auth.hashers import check_password
+# back 7
+# back 7
+def hash_pwd_mk(password):
+    try:
+        hashed_password = make_password(password)
+        return hashed_password
+    except:
+        return print('hash become except')
 
+def hash_pwd_chk(password,hashed_password):
+    if check_password(password, hashed_password):
+        print("비밀번호가 일치합니다.")
+        return 'success'
+    else:
+        print("비밀번호가 일치하지 않습니다.")
+        return 'false'
+# back 7
 
-def default_result(error_code, success, msg):
+# def default_result(error_code, success, msg):
+#     return {
+#         'code': error_code,
+#         'success': success,
+#         'message': msg
+#     }
+
+def default_result( success, msg):
     return {
-        'code': error_code,
         'success': success,
         'message': msg
     }
@@ -96,10 +123,26 @@ def verify_token(request):
     # 세션에서 토큰을 가져옴
     SECRET_KEY = 'aurora_secret_key'
     token = request.session.get('token')
+
     try:
         # 토큰의 유효성 검증
         decode_token = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
         return decode_token
+    except jwt.ExpiredSignatureError:
+        return 'token expired'
+    except jwt.InvalidTokenError:
+        return False
+
+def verify_token2(token):
+    # 세션에서 토큰을 가져옴
+    SECRET_KEY = 'aurora_secret_key'
+    # token = request.session.get('token')
+    try:
+        # 토큰의 유효성 검증
+        decode_token = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
+        return decode_token
+    except jwt.ExpiredSignatureError:
+        return 'token expired'
     except jwt.InvalidTokenError:
         return False
 
@@ -131,6 +174,7 @@ def login2(request):
                 request.session['token'] = token
                 #세션에 저장된 토큰을 검증하고 (expired 면 기존 토큰을 분해해서 user_id 값을 대조해서 검증합니다. )
                 token = verify_token(request)
+
                 response_data = {
                     'success': True,
                     'user_token': token,
@@ -173,15 +217,26 @@ def login(request):
         user_id = data.get("user_id")
         user_pwd = data.get("user_pwd")
 
-        user_check = f''' select user_id from au_user where user_id = "{user_id}" and user_pwd = "{user_pwd}" '''
+# db 쪽과 현재 패스워드의 체크 필요함. - 해싱 체크 필요. - 중간에 메서드 필요함. 로그인에서는 
+
+        # user_check = f''' select user_id from au_user where user_id = "{user_id}" and user_pwd = "{user_pwd}" '''
+        # user = sql_excuter_commit(user_check)
+
+# back 7
+        user_check = f''' select user_pwd from au_user where user_id = "{user_id}" '''
         user = sql_excuter_commit(user_check)
+
         user_typeql = f''' select user_type from au_user where user_id = "{user_id}" '''
         userql = sql_excuter_commit(user_typeql)
-        user_type = userql[0]
+        user_type = userql[0][0]
         
 
         # Check if user exists
         if len(user)>0:
+# back 7
+            user_hashed_pwd = user[0][0]
+            hash_chk = hash_pwd_chk(user_pwd,user_hashed_pwd)
+# back 7
             request.session['user_id'] = user_id
             # Generate token
             asia_seoul = pytz.timezone('Asia/Seoul')
@@ -194,18 +249,32 @@ def login(request):
 
             SECRET_KEY = 'aurora_secret_key'
             token = generate_token(user_id)
-            # Store the token in session with encoding
-            request.session['token'] = token
+
+
 
             #decoded_token = jwt.decode(token,SECRET_KEY, algorithms=['HS256'])
-            decoded_token = verify_token(request)
 
+            # decoded_token = verify_token(request)
+            decoded_token = verify_token2(token)
+
+            # Store the token in session with encoding
+            # 굳이 세션에 저장할 필요가 없습니다. 
+            request.session['token'] = token
             request.session['token'] = token.decode('utf-8')
+
+
+
+            # 토큰 분기 - 만료이거나, 옳지 않을때, 
+            # 토큰이 만료일떄 if token == 'token expired'
+            # 토큰이 (옳지 않은)False 일떄, if token == False 
+            # 그 나머지는 옳은 로그인으로 칩니다. 
 
             response_data = {
                 'success': True,
-                'user_token': decoded_token,
-                'user_type': user_type
+                # 'user_token': decoded_token,
+                'user_token': token,
+                'user_type': user_type,
+                'pwd_check': hash_chk 
                 }
 
             update_loginql = f''' UPDATE au_user set login_date = "{now_asia_seoul}" where user_id = "{user_id}" '''
@@ -241,7 +310,9 @@ def signup(request):
         try:
             #유저의 약관체크를 햇다는 표시가 있어야됨. agreement key check logic 들어가야됨. ㅐ 
             user_agreement = data.get("user_agreement")
-
+# aurora_backend 9
+            user_pwd = hash_pwd_mk(user_pwd)
+# aurora_backend 9            
             user_insert_ql = f'''  INSERT INTO au_user (user_id, user_pwd, user_type, user_phone) VALUES ("{user_id}", "{user_pwd}", "{user_type}", "{user_phone}") '''
             insertql = sql_excuter_commit(user_insert_ql)
             
@@ -257,21 +328,24 @@ def signup(request):
             print("user is parent")
             response_data = {
                     "code": 0,
-                    "success": "true",
-                    "message": "success",
+                    "success": True,
+                    "message": "insert parent successs",
                     }
             json_response = response_data
             return Response(json_response, status = status.HTTP_200_OK)
         except Exception as e:
             excpt = (f"An error occured: {e}")
             return JsonResponse({
-                'error': 'invalid parent insert ql',
-                'ecpt': excpt
+                'success': False,
+                'message': excpt
                 },
                 status=401)
 
         
     elif user_type == "evaluator":
+# aurora_backend 9
+        user_pwd = hash_pwd_mk(user_pwd)
+# aurora_backend 9        
         user_email = data.get("user_email")
         user_name = data.get("user_name")
         user_approval = "N" # 기본 approaval 은 N 입니다. 
@@ -280,17 +354,16 @@ def signup(request):
             insertql = sql_excuter_commit(user_insert_ql)
             print("user is evaluator")
             response_data = {
-                    "code": 0,
-                    "success": "true",
-                    "message": "success",
+                    "success": True,
+                    "message": "insert evaluator success",
                     }
             json_response = response_data
             return Response(json_response, status = status.HTTP_200_OK)
         except Exception as e:
             excpt = (f"An error occured: {e}")
             return JsonResponse({
-                'error': 'invalid parent insert ql',
-                'ecpt': excpt
+                'success': True,
+                'message': excpt
                 },
             #return JsonResponse({
             #    'error': 'invalid evaluator insert ql'},
@@ -301,24 +374,25 @@ def signup(request):
         user_name = data.get("user_name")
         user_pwd = "1111"
 
+# aurora_backend 9
+        user_pwd = hash_pwd_mk(user_pwd)
+# aurora_backend 9
         try:
             user_insert_ql = f'''  INSERT INTO au_user (user_id, user_pwd, user_type, user_phone,user_email,user_name) VALUES ("{user_id}", "{user_pwd}", "{user_type}", "{user_phone}","{user_email}","{user_name}") '''
             insertql = sql_excuter_commit(user_insert_ql)
-            print("user is evaluator")
 
             #초기 비밀번호 1111
             response_data = {
-                    "code": 0,
-                    "success": "true",
-                    "message": "success",
+                    "success": True,
+                    "message": "insert admin success",
                     }
             json_response = response_data
             return Response(json_response, status = status.HTTP_200_OK)
         except Exception as e:
             excpt = (f"An error occured: {e}")
             return JsonResponse({
-                'error': 'invalid parent insert ql',
-                'ecpt': excpt
+                'success': False,
+                'message': excpt
                 },
                 status=401)
 
@@ -349,11 +423,22 @@ def password_reset(request):
     if user_type == user_type_chk:
         update_resetql = f''' UPDATE au_user set user_pwd = "1111" where user_id = "{user_id}" '''
         updateql = sql_executer(update_resetql)
-        json_response = default_result('200','success','password successfully reset')
+
+        response_data = {
+                    'success': True,
+                    'message': 'password successfullly reset'
+                    }
+
+        # json_response = default_result('200','success','password successfully reset')
+        json_response = response_data
         return Response(json_response, status = status.HTTP_200_OK)
         #return Response(response_data, status = status.HTTP_200_OK)
     else:
-        json_response = default_result('401', 'false', 'user is not admin or invalid id ')
+        response_data = {
+                    'success': False,
+                    'message': 'password reset False'
+                    }
+        json_response = response_data
         return Response(json_response, status = status.HTTP_200_OK)
 
 @csrf_exempt
@@ -370,18 +455,39 @@ def password_change(request):
     user_new_pwd = data.get("user_new_pwd")
 
     #유저 존재 확인 
-    user_check = f''' select user_id from au_user where user_id = "{user_id}" and user_pwd = "{user_cur_pwd}" '''
+    # user_check = f''' select user_id from au_user where user_id = "{user_id}" and user_pwd = "{user_cur_pwd}" '''
+    # user_check_col = sql_executer(user_check)
+    user_check = f''' select user_pwd from au_user where user_id = "{user_id}" '''
     user_check_col = sql_executer(user_check)
     if len(user_check_col)>0:
+        cur_pwd = user_check_col[0][0]
+
+        # hashed_cur_pwd = hash_pwd_mk(cur_pwd)
+        hashed_cur_pwd = hash_pwd_mk(user_cur_pwd)
+
+        # hash_chk = hash_pwd_chk(cur_pwd,hashed_cur_pwd)
+        hash_chk = hash_pwd_chk(cur_pwd,hashed_cur_pwd)
+        if hash_chk == 'success':
+            user_new_pwd = hash_pwd_mk(user_new_pwd)
+            update_resetql = f''' UPDATE au_user set user_pwd = "{user_new_pwd}" where user_id = "{user_id}" '''
+            updateql = sql_executer(update_resetql)
+        else:
+            # json_response = default_result('401', 'false', 'matching user does not exist ')
+            json_response = default_result( False, 'matching user does not exist ')
+            return Response(json_response, status = '401') 
+
+# aurora_backend 9
         #update sql 
         # password update 
-        update_resetql = f''' UPDATE au_user set user_pwd = "{user_new_pwd}" where user_id = "{user_id}" '''
-        updateql = sql_executer(update_resetql)
-
-        json_response = default_result('200','success','password successfully change')
+        # update_resetql = f''' UPDATE au_user set user_pwd = "{user_new_pwd}" where user_id = "{user_id}" '''
+        # updateql = sql_executer(update_resetql)
+# aurora_backend 9
+        # json_response = default_result('200','success','password successfully change')
+        json_response = default_result(True,'password successfully change')
         return Response(json_response, status = status.HTTP_200_OK) 
     else:
-        json_response = default_result('401', 'false', 'matching user does not exist ')
+        # json_response = default_result('401', 'false', 'matching user does not exist ')
+        json_response = default_result(False, 'matching user does not exist ')
         return Response(json_response, status = '401') 
 
 @csrf_exempt
@@ -404,10 +510,12 @@ def delete_user(request):
         delete_useql = f''' Delete from au_user where user_id = "{user_id}" '''
         deleteql = sql_executer(delete_useql)
 
-        json_response = default_result('200','success','user successfully deleted')
+        # json_response = default_result('200','success','user successfully deleted')
+        json_response = default_result(True,'user successfully deleted')
         return Response(json_response, status = status.HTTP_200_OK)
     else:
-        json_response = default_result('401', 'false', 'matching user does not exist ')
+        # json_response = default_result('401', 'false', 'matching user does not exist ')
+        json_response = default_result(False, 'matching user does not exist ')
         return Response(json_response, status = '401')
 
 
@@ -428,8 +536,7 @@ def admin_list(request):
     # admin_list = list(admin_list[0])
 
     response_data = {
-                    "code": 0,
-                    "success": "true",
+                    "success": True,
                     "message": "success",
                     "adminlist": admin_list
                     # "adminlist": "random"
@@ -454,19 +561,32 @@ def admin_create(request):
     user_email = data.get("user_email")
 # user_id 체크로직 넣기
 
+# back 7
+    user_pwd = '123456'
+# 해당 패스워드로 해싱 패스워드 생성 
+    hashed_pwd = hash_pwd_mk(user_pwd)
+
+
+# 해싱 패스워드 생성한것을 db 에 저장. -관리자 create 쪽에 해보기 
+
     try:
         # admin_insert = f''' INSERT INTO au_user (user_id, user_name, user_type, user_phone,user_email,user_pwd) VALUES ("{user_id}","{user_name}" "{user_type}", "{user_phone}","{user_email}", "123456") '''
-        admin_insert = f''' INSERT INTO au_user (user_id, user_name, user_type, user_phone,user_email,user_pwd) VALUES ("{user_id}","{user_name}" ,"admin", "{user_phone}","{user_email}", "123456") '''
+        # admin_insert = f''' INSERT INTO au_user (user_id, user_name, user_type, user_phone,user_email,user_pwd) VALUES ("{user_id}","{user_name}" ,"admin", "{user_phone}","{user_email}", "123456") '''
+        admin_insert = f''' INSERT INTO au_user (user_id, user_name, user_type, user_phone,user_email,user_pwd) VALUES ("{user_id}","{user_name}" ,"admin", "{user_phone}","{user_email}", "{hashed_pwd}") '''
+# back 7
         insertql = sql_executer(admin_insert)
         response_data = {
-                    "code": 0,
-                    "success": "true",
+                    "success": True,
                     "message": "admin create success"
                     }
         json_response = response_data
         return Response(json_response, status= status.HTTP_200_OK)
     except:
-        response_data = default_result('401', 'false', 'admin creation false')
+        response_data = {
+                    "success": False,
+                    "message": "admin create False"
+                    }        
+        # response_data = default_result('401', 'false', 'admin creation false')
         json_response = response_data
         return Response(json_response, status = '401')
 
@@ -489,17 +609,20 @@ def admin_detail_search(request):
         user_phone = admin_list[0][3]
 
         response_data = {
-                    "code": 0,
-                    "success": "true",
+                    "success": True,
                     "user_name": user_name,
                     "user_email": user_email,
-                    "user_phone": user_phone
+                    "user_phone": user_phone,
+                    "message" : "admin_detail_list get success"
                     }
-
         json_response = response_data
         return Response(json_response, status= status.HTTP_200_OK)
     except:
-        response_data = default_result('401', 'false', 'admin search fail')
+        response_data = {
+                    "success": False,
+                    "message" : "admin_detail_list get False"
+                    }        
+        # response_data = default_result('401', 'false', 'admin search fail')
         json_response = response_data
         return Response(json_response, status = '401')
     
@@ -525,12 +648,19 @@ def admin_detail_revise(request):
         # admin_listql = f''' select user_id, user_name, user_email, user_phone from au_user where user_id = "{user_id}"  and user_type = "{user_type}" '''
         # admin_list = sql_executer(admin_listql)
         # admin_detail = admin_list[0]
-
-        response_data = default_result('200','success','user successfully updated')
+        response_data = {
+                    "success": True,
+                    "message" : "user successfully updated"
+                    }
+        # response_data = default_result('200','success','user successfully updated')
         json_response = response_data
         return Response(json_response, status= status.HTTP_200_OK)
     except:
-        response_data = default_result('401', 'false', 'user update fail')
+        response_data = {
+                    "success": False,
+                    "message" : "user update fail"
+                    }
+        # response_data = default_result('401', 'false', 'user update fail')
         json_response = response_data
         return Response(json_response, status = '401')
     
@@ -554,9 +684,8 @@ def parent_list(request):
     parent_list = sql_executer(parent_listql)
 
     response_data = {
-                    "code": 0,
-                    "success": "true",
-                    "message": "success",
+                    "success": True,
+                    "message": "user select success",
                     "adminlist": parent_list
                     }
     # json_response = default_result('200','success','user successfully deleted')
@@ -580,9 +709,8 @@ def parent_detail_search(request):
     # parent_list = list(parent_list[0])
 
     response_data = {
-                    "code": 0,
-                    "success": "true",
-                    "message": "success",
+                    "success": True,
+                    "message": "parent detail search success",
                     "adminlist": parent_list
                     }
     # json_response = default_result('200','success','user successfully deleted')
