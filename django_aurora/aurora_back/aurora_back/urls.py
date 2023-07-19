@@ -76,6 +76,5 @@ urlpatterns = [
     path('api/child-detail-search', child_detail_search, name='child_detail_search'),
     path('api/child-detail-revise', child_detail_revise, name='child_detail_revise'),
 
-#    path('api/profile/', profile, name='profile'),
 
 ]
