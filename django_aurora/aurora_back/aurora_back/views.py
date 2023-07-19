@@ -14,8 +14,14 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.contrib.sessions.middleware import SessionMiddleware
 
+# strptime 때문에 import .
+from datetime import datetime
+
 import os
 import sys
+import uuid
+
+
 from aurora_back import settings as aurora_backSettings
 sys.path.append(os.path.dirname(aurora_backSettings.__file__))
 # Create your views here.
@@ -25,14 +31,11 @@ sys.path.append(os.path.dirname(aurora_backSettings.__file__))
 import pymysql
 pymysql.install_as_MySQLdb()
 from django.views.decorators.csrf import csrf_exempt
-
-# back 7
-# 해시 비밀번호 생성 
 from django.contrib.auth.hashers import make_password
-# 해시 비밀번호 점검 import
 from django.contrib.auth.hashers import check_password
-# back 7
-# back 7
+# 해시 비밀번호 점검 import
+# 해시 비밀번호 생성 
+
 def hash_pwd_mk(password):
     try:
         hashed_password = make_password(password)
@@ -41,23 +44,18 @@ def hash_pwd_mk(password):
         return print('hash become except')
 
 def hash_pwd_chk(password,hashed_password):
-    if check_password(password, hashed_password):
+    
+    if check_password(password, hashed_password) == True:
         print("비밀번호가 일치합니다.")
         return 'success'
+    
     else:
         print("비밀번호가 일치하지 않습니다.")
         return 'false'
-# back 7
 
-# def default_result(error_code, success, msg):
-#     return {
-#         'code': error_code,
-#         'success': success,
-#         'message': msg
-#     }
-
-def default_result( success, msg):
+def default_result( code,success, msg):
     return {
+        'code': code,
         'success': success,
         'message': msg
     }
@@ -73,10 +71,15 @@ def sql_executer(sql_context):
     finally:
         cur.close()
 
+def validate_date_format(date_string):
+    try:
+        datetime.strptime(date_string, '%Y-%m-%d')
+        return True
+    except ValueError:
+        return False
 
 
-#SECRET_KEY = 'secret_key'
-import time
+
 
 def sql_excuter_commit(sql_text):
 
@@ -104,7 +107,7 @@ def generate_token(user_id):
     # 토큰의 만료 시간 설정
     asia_seoul = pytz.timezone('Asia/Seoul')
     now_asia_seoul = datetime.datetime.now(asia_seoul)
-    expiration_time = now_asia_seoul + datetime.timedelta(hours=1)
+    expiration_time = now_asia_seoul + datetime.timedelta(hours=12)
     # 토큰 페이로드(payload) 설정
     payload = {
         'user_id': user_id,
@@ -123,7 +126,6 @@ def verify_token(request):
     # 세션에서 토큰을 가져옴
     SECRET_KEY = 'aurora_secret_key'
     token = request.session.get('token')
-
     try:
         # 토큰의 유효성 검증
         decode_token = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
@@ -133,79 +135,20 @@ def verify_token(request):
     except jwt.InvalidTokenError:
         return False
 
+#토큰을 변수로 받음 - 해당 토큰의 유효성만 검증 (만료시간, 토큰 key 값 검증.)
 def verify_token2(token):
-    # 세션에서 토큰을 가져옴
     SECRET_KEY = 'aurora_secret_key'
-    # token = request.session.get('token')
     try:
         # 토큰의 유효성 검증
         decode_token = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
-        return decode_token
+        # return decode_token
+        return token
     except jwt.ExpiredSignatureError:
         return 'token expired'
     except jwt.InvalidTokenError:
         return False
 
-@csrf_exempt
-@api_view(["POST"])
-def login2(request):
-    if request.method == "POST":
-        asia_seoul = pytz.timezone('Asia/Seoul')
-        now_asia_seoul = datetime.datetime.now(asia_seoul)
-        #세션 토큰 체크
-        token = request.session.get('token')
-        if not token:
-            body = request.body.decode("utf-8")
-            data = json.loads(body)
-            user_id = data.get("user_id")
-            user_pwd = data.get("user_pwd")
 
-            user_check = f''' select user_id from au_user where user_id = "{user_id}" and user_pwd = "{user_pwd}" '''
-            user = sql_excuter_commit(user_check)
-            user_typeql = f''' select user_type from au_user where user_id = "{user_id}" '''
-            userql = sql_excuter_commit(user_typeql)
-            user_type = userql[0]
-
-            # 유저체크통과 했을때 토큰생성.
-            if len(user)>0:
-                #토큰이 없으니 토큰생성 #secret (aurora_secret), algo (hs 256) 내용 - user_id, exp date (1시간 )
-                token = generate_token(user_id)
-                # 토큰 생성후 세션에 토큰 저장. - 만료시간 갱신의 의미. #utf-8 형식으로 바꿔야됨.
-                request.session['token'] = token
-                #세션에 저장된 토큰을 검증하고 (expired 면 기존 토큰을 분해해서 user_id 값을 대조해서 검증합니다. )
-                token = verify_token(request)
-
-                response_data = {
-                    'success': True,
-                    'user_token': token,
-                    'user_type': user_type
-                    }
-                update_loginql = f''' UPDATE au_user set login_date = "{now_asia_seoul}" where user_id = "{user_id}" '''
-                updateql = sql_excuter_commit(update_loginql)
-                json_response = response_data
-                return Response(json_response, status = status.HTTP_200_OK)
-
-        else:
-            body = request.body.decode("utf-8")
-            data = json.loads(body)
-
-            user_id = data.get("user_id")
-            user_typeql = f''' select user_type from au_user where user_id = "{user_id}" '''
-            userql = sql_excuter_commit(user_typeql)
-            user_type = userql[0]
-            #세션에 토큰이 있을경우 (utf-8 형식으로 된)검증 token id verify, exp 후 token return.
-            token = verify_token(request)
-
-            response_data =  {
-                    'success': True,
-                    'user_token': token,
-                    'user_type': user_type
-                    }
-            return Response(response_data, status = status.HTTP_200_OK)
-            if token == 'verifyfalse':
-                response_data = {'success': False,
-                              'message':"token verify false"}
-                return Response(response_data, status = 401)
 
 @csrf_exempt
 @api_view(["POST"])
@@ -222,7 +165,7 @@ def login(request):
         # user_check = f''' select user_id from au_user where user_id = "{user_id}" and user_pwd = "{user_pwd}" '''
         # user = sql_excuter_commit(user_check)
 
-# back 7
+
         user_check = f''' select user_pwd from au_user where user_id = "{user_id}" '''
         user = sql_excuter_commit(user_check)
 
@@ -230,57 +173,78 @@ def login(request):
         userql = sql_excuter_commit(user_typeql)
         user_type = userql[0][0]
         
-
-        # Check if user exists
         if len(user)>0:
-# back 7
+            # user_pwd(사용자 전달 pwd), user_hash_pwd (유저id_에 맞는 pwd 체크)
             user_hashed_pwd = user[0][0]
             hash_chk = hash_pwd_chk(user_pwd,user_hashed_pwd)
-# back 7
-            request.session['user_id'] = user_id
-            # Generate token
-            asia_seoul = pytz.timezone('Asia/Seoul')
-            now_asia_seoul = datetime.datetime.now(asia_seoul)
-            expiration_time = now_asia_seoul + datetime.timedelta(hours=1)
-            #내용 저장. 
-            payload = {'user_id': user_id,
-                       'exp': expiration_time
-                       }
 
             SECRET_KEY = 'aurora_secret_key'
             token = generate_token(user_id)
-
-
-
-            #decoded_token = jwt.decode(token,SECRET_KEY, algorithms=['HS256'])
-
-            # decoded_token = verify_token(request)
-            decoded_token = verify_token2(token)
-
-            # Store the token in session with encoding
-            # 굳이 세션에 저장할 필요가 없습니다. 
-            request.session['token'] = token
-            request.session['token'] = token.decode('utf-8')
-
-
+            token = verify_token2(token)
 
             # 토큰 분기 - 만료이거나, 옳지 않을때, 
-            # 토큰이 만료일떄 if token == 'token expired'
-            # 토큰이 (옳지 않은)False 일떄, if token == False 
-            # 그 나머지는 옳은 로그인으로 칩니다. 
-
-            response_data = {
-                'success': True,
-                # 'user_token': decoded_token,
-                'user_token': token,
-                'user_type': user_type,
-                'pwd_check': hash_chk 
+            # 토큰 만료 if token == 'token expired'
+            # 토큰 (옳지 않은) if token == False 
+            # 나머지 옳은 로그인으로 칩니다.
+            if token == 'token expired':
+                response_data = {
+                'code':401,
+                'success': False,
+                'message': 'token expired'
                 }
+                json_response = response_data
+                return Response(json_response, status = 401)
+            elif token == False:
+                response_data = {
+                'code': 403,
+                'success': False,
+                'message': 'token False'
+                }
+                json_response = response_data
+                return Response(json_response, status = 403)
+            else:
+                # 왜 비밀번호가 일치하지 않는지 확인필요. + 비밀번호가 일치하지 않을때, success 를 False 로 전달확인 필요.
+                # hash_chk == 'success/false'
 
-            update_loginql = f''' UPDATE au_user set login_date = "{now_asia_seoul}" where user_id = "{user_id}" '''
-            updateql = sql_excuter_commit(update_loginql)
-            json_response = response_data
-            return Response(json_response, status = status.HTTP_200_OK)
+                # 만약 hash_chk가 false 라면, success 라면 json_response 분기치기. 
+                if hash_chk == 'false':
+                    response_data = {
+                    'success': False,
+                    'message': 'pwd False',
+                    'user_hashed_pwd': user_hashed_pwd 
+                    }
+                    json_response = response_data
+                    return Response(json_response, status = 403)
+                else:
+                    asia_seoul = pytz.timezone('Asia/Seoul')
+                    now_asia_seoul = datetime.datetime.now(asia_seoul)
+                    response_data = {
+                        'success': True,
+                        'user_token': token,
+                        'user_type': user_type,
+                        'pwd_check': hash_chk
+                        }
+                    update_loginql = f''' UPDATE au_user set login_date = "{now_asia_seoul}" where user_id = "{user_id}" '''
+                    updateql = sql_excuter_commit(update_loginql)
+                    json_response = response_data
+                    return Response(json_response, status = status.HTTP_200_OK)
+
+                # asia_seoul = pytz.timezone('Asia/Seoul')
+                # now_asia_seoul = datetime.datetime.now(asia_seoul)
+                # response_data = {
+                #     'success': True,
+                #     'user_token': token,
+                #     'user_type': user_type,
+                #     'pwd_check': hash_chk
+                #     }
+                # update_loginql = f''' UPDATE au_user set login_date = "{now_asia_seoul}" where user_id = "{user_id}" '''
+                # updateql = sql_excuter_commit(update_loginql)
+                # json_response = response_data
+                # return Response(json_response, status = status.HTTP_200_OK)
+
+                # Store the token in session with encoding             # 굳이 세션에 저장할 필요가 없습니다. 
+                # request.session['token'] = token
+                # request.session['token'] = token.decode('utf-8')
 
         else:
             return JsonResponse({
@@ -308,11 +272,9 @@ def signup(request):
     if user_type == "parent":
 
         try:
-            #유저의 약관체크를 햇다는 표시가 있어야됨. agreement key check logic 들어가야됨. ㅐ 
             user_agreement = data.get("user_agreement")
-# aurora_backend 9
-            user_pwd = hash_pwd_mk(user_pwd)
-# aurora_backend 9            
+
+            user_pwd = hash_pwd_mk(user_pwd)      
             user_insert_ql = f'''  INSERT INTO au_user (user_id, user_pwd, user_type, user_phone) VALUES ("{user_id}", "{user_pwd}", "{user_type}", "{user_phone}") '''
             insertql = sql_excuter_commit(user_insert_ql)
             
@@ -327,7 +289,7 @@ def signup(request):
 
             print("user is parent")
             response_data = {
-                    "code": 0,
+                    "code": 200,
                     "success": True,
                     "message": "insert parent successs",
                     }
@@ -336,6 +298,7 @@ def signup(request):
         except Exception as e:
             excpt = (f"An error occured: {e}")
             return JsonResponse({
+                'code' : 401,
                 'success': False,
                 'message': excpt
                 },
@@ -343,9 +306,7 @@ def signup(request):
 
         
     elif user_type == "evaluator":
-# aurora_backend 9
-        user_pwd = hash_pwd_mk(user_pwd)
-# aurora_backend 9        
+        user_pwd = hash_pwd_mk(user_pwd)   
         user_email = data.get("user_email")
         user_name = data.get("user_name")
         user_approval = "N" # 기본 approaval 은 N 입니다. 
@@ -362,6 +323,7 @@ def signup(request):
         except Exception as e:
             excpt = (f"An error occured: {e}")
             return JsonResponse({
+                'code' : 401,
                 'success': True,
                 'message': excpt
                 },
@@ -383,6 +345,7 @@ def signup(request):
 
             #초기 비밀번호 1111
             response_data = {
+                    "code": 200,
                     "success": True,
                     "message": "insert admin success",
                     }
@@ -391,6 +354,7 @@ def signup(request):
         except Exception as e:
             excpt = (f"An error occured: {e}")
             return JsonResponse({
+                'code' : 401,
                 'success': False,
                 'message': excpt
                 },
@@ -398,7 +362,10 @@ def signup(request):
 
     else:
         print("invalid user type")
-        return JsonResponse({'error': 'invalid user_type ql'},
+        return JsonResponse({
+            'code':401,
+            'error': 'invalid user_type ql'
+            },
                 status=401)
 
     return JsonResponse({'error': 'invalid user_type ql'},status=401)
@@ -421,7 +388,11 @@ def password_reset(request):
     user_type_chk = userql[0][0]
 
     if user_type == user_type_chk:
-        update_resetql = f''' UPDATE au_user set user_pwd = "1111" where user_id = "{user_id}" '''
+        # 해싱키로 pwd 를 1111 로 만들기. + update pwd 1111 
+        hashed_password = hash_pwd_mk('1111')
+
+        # update_resetql = f''' UPDATE au_user set user_pwd = "1111" where user_id = "{user_id}" '''
+        update_resetql = f''' UPDATE au_user set user_pwd = "{hashed_password}" where user_id = "{user_id}" '''
         updateql = sql_executer(update_resetql)
 
         response_data = {
@@ -473,7 +444,7 @@ def password_change(request):
             updateql = sql_executer(update_resetql)
         else:
             # json_response = default_result('401', 'false', 'matching user does not exist ')
-            json_response = default_result( False, 'matching user does not exist ')
+            json_response = default_result( 401,False, 'matching user does not exist ')
             return Response(json_response, status = '401') 
 
 # aurora_backend 9
@@ -483,11 +454,11 @@ def password_change(request):
         # updateql = sql_executer(update_resetql)
 # aurora_backend 9
         # json_response = default_result('200','success','password successfully change')
-        json_response = default_result(True,'password successfully change')
+        json_response = default_result(200,True,'password successfully change')
         return Response(json_response, status = status.HTTP_200_OK) 
     else:
         # json_response = default_result('401', 'false', 'matching user does not exist ')
-        json_response = default_result(False, 'matching user does not exist ')
+        json_response = default_result(401,False, 'matching user does not exist ')
         return Response(json_response, status = '401') 
 
 @csrf_exempt
@@ -511,11 +482,11 @@ def delete_user(request):
         deleteql = sql_executer(delete_useql)
 
         # json_response = default_result('200','success','user successfully deleted')
-        json_response = default_result(True,'user successfully deleted')
+        json_response = default_result(200,True,'user successfully deleted')
         return Response(json_response, status = status.HTTP_200_OK)
     else:
         # json_response = default_result('401', 'false', 'matching user does not exist ')
-        json_response = default_result(False, 'matching user does not exist ')
+        json_response = default_result(401,False, 'matching user does not exist ')
         return Response(json_response, status = '401')
 
 
@@ -538,7 +509,7 @@ def admin_list(request):
     response_data = {
                     "success": True,
                     "message": "success",
-                    "adminlist": admin_list
+                    "data" : {"adminlist": admin_list}
                     # "adminlist": "random"
                     }
     # json_response = default_result('200','success','user successfully deleted')
@@ -609,16 +580,18 @@ def admin_detail_search(request):
         user_phone = admin_list[0][3]
 
         response_data = {
+                    "code": 200, 
                     "success": True,
-                    "user_name": user_name,
+                    "message" : "admin_detail_list get success",
+                    "data" : {"user_name": user_name,
                     "user_email": user_email,
-                    "user_phone": user_phone,
-                    "message" : "admin_detail_list get success"
+                    "user_phone": user_phone}
                     }
         json_response = response_data
         return Response(json_response, status= status.HTTP_200_OK)
     except:
         response_data = {
+                    "code": 400,
                     "success": False,
                     "message" : "admin_detail_list get False"
                     }        
@@ -683,11 +656,18 @@ def parent_list(request):
     parent_listql = f''' select user_id, user_name, create_date, login_date from au_user where (user_id like "%{user_id}%") and user_type = "{user_type}" '''
     parent_list = sql_executer(parent_listql)
 
+    # response_data = {
+    #                 "success": True,
+    #                 "message": "user select success",
+    #                 "parent_list": parent_list
+    #                 }
+    
     response_data = {
                     "success": True,
                     "message": "user select success",
-                    "adminlist": parent_list
-                    }
+                    "data": {"parent_list" : parent_list}
+                    }    
+
     # json_response = default_result('200','success','user successfully deleted')
     json_response = response_data
     return Response(json_response, status= status.HTTP_200_OK)
@@ -711,9 +691,220 @@ def parent_detail_search(request):
     response_data = {
                     "success": True,
                     "message": "parent detail search success",
-                    "adminlist": parent_list
+                    "data" :{"parent_list": parent_list}
                     }
     # json_response = default_result('200','success','user successfully deleted')
     json_response = response_data
     return Response(json_response, status= status.HTTP_200_OK)
 
+
+@csrf_exempt
+@api_view(["POST"])
+def evaluator_list(request):
+    asia_seoul = pytz.timezone('Asia/Seoul')
+    now_asia_seoul = datetime.datetime.now(asia_seoul)    
+    body = request.body.decode("utf-8")
+    data = json.loads(body)
+    user_search = data.get("user_search")
+    user_approval = data.get("user_approval")     # user_approval ('Y','N')
+    # eval_listql = f''' select user_id, user_name, create_date, login_date from au_user where (user_id like "%{user_search}%" or user_name like "%{user_search}%") and user_type = "{user_type}" and user_approval = "{user_approval}" '''
+    eval_listql = f''' select user_id, user_name, create_date, login_date, user_approval from au_user where (user_id like "%{user_search}%" or user_name like "%{user_search}%") and user_approval = "{user_approval}" '''
+    eval_list = sql_executer(eval_listql)
+    response_data = {
+                    "success": True,
+                    "message": "success",
+                    "data": {"eval_list": eval_list}
+                    }
+    json_response = response_data
+    return Response(json_response, status= status.HTTP_200_OK)
+
+@csrf_exempt
+@api_view(["POST"])
+def evaluator_detail_search(request):
+    asia_seoul = pytz.timezone('Asia/Seoul')
+    now_asia_seoul = datetime.datetime.now(asia_seoul)    
+    body = request.body.decode("utf-8")
+    data = json.loads(body)
+    user_id = data.get("user_id")
+    # user_name = data.get("user_name")
+    try:
+        # admin_listql = f''' select user_id, user_name, user_email, user_phone from au_user where user_id = "{user_id}"  and user_type = "{user_type}" '''
+        admin_listql = f''' select user_id, user_name, user_email, user_phone from au_user where user_id = "{user_id}" '''
+        admin_list = sql_executer(admin_listql)
+        #user_id = admin_list[0][0]
+        user_name = admin_list[0][1]
+        user_email = admin_list[0][2]
+        user_phone = admin_list[0][3]
+
+        response_data = {
+                    "code" : 200,
+                    "success": True,
+                    "data" : {"user_name": user_name,
+                    "user_email": user_email,
+                    "user_phone": user_phone}
+                    }
+        json_response = response_data
+        return Response(json_response, status= status.HTTP_200_OK)
+    except:
+        response_data = default_result(False, 'admin search fail')
+        json_response = response_data
+        return Response(json_response, status = '401')
+
+
+@csrf_exempt
+@api_view(["POST"])
+def evaluator_detail_revise(request):
+    asia_seoul = pytz.timezone('Asia/Seoul')
+    now_asia_seoul = datetime.datetime.now(asia_seoul)    
+    body = request.body.decode("utf-8")
+    data = json.loads(body)
+    user_id = data.get("user_id")
+    # user_type = data.get("user_type")
+    user_name = data.get("user_name")
+    user_phone = data.get("user_phone")
+    user_email = data.get("user_email")
+    user_approval = data.get("user_approval")
+
+    try:
+        update_ql = f''' UPDATE au_user set user_name = "{user_name}", user_phone = "{user_phone}", user_email = "{user_email}", user_approval = "{user_approval}" where user_id = "{user_id}" '''
+        update_ql_com = sql_executer(update_ql)
+
+        # response_data = {
+        #             "success": True,
+        #             "message" : "user successfully updated"
+        #             }
+        response_data = default_result(200, True, 'user successfully updated')
+        json_response = response_data
+        return Response(json_response, status= status.HTTP_200_OK)
+    except:
+        # response_data = {
+        #             "success": False,
+        #             "message" : "user update fail"
+        #             }
+        response_data = default_result(401, False, 'user update fail')
+        json_response = response_data
+        return Response(json_response, status = '401')
+
+@csrf_exempt
+@api_view(["POST"])
+def child_list(request):
+    asia_seoul = pytz.timezone('Asia/Seoul')
+    now_asia_seoul = datetime.datetime.now(asia_seoul)    
+    body = request.body.decode("utf-8")
+    data = json.loads(body)
+    user_id = data.get("user_id")
+
+    try:
+        select_child_ql = f''' select child_name from au_child where user_id = "{user_id}" '''
+        child_ql_com = sql_executer(select_child_ql)
+        response_data = {
+                    "code": 200,
+                    "success": True,
+                    "message" : "child successfully get",
+                    "data" : {                    "child_list" : child_ql_com}
+                    }
+        json_response = response_data
+        return Response(json_response, status= status.HTTP_200_OK)
+    except:
+        response_data = {
+                    "code": 401,
+                    "success": False,
+                    "message" : "child select fail"
+                    }
+        json_response = response_data
+
+        return Response(json_response, status = '401')
+
+@csrf_exempt
+@api_view(["POST"])
+def child_create(request):
+    asia_seoul = pytz.timezone('Asia/Seoul')
+    now_asia_seoul = datetime.datetime.now(asia_seoul)    
+    body = request.body.decode("utf-8")
+    data = json.loads(body)
+    user_id = data.get("user_id")
+    child_name = data.get("child_name")
+    birth_date = data.get("birth_date")
+    gender = data.get("gender")
+    child_id = str(uuid.uuid4())
+    form_date = validate_date_format(birth_date)
+    if form_date == True:
+        try:
+
+            insert_ql = f''' INSERT INTO au_users (child_name, birth_date, child_id, gender, user_id ) VALUES ("{child_name}", '2018-07-07', "{child_id}", "{gender}", "{user_id}"); '''
+            insert_ql_com = sql_executer(insert_ql)
+
+            response_data = default_result(200, True, 'child successfully created')
+
+            
+            json_response = response_data
+            return Response(json_response, status= status.HTTP_200_OK)
+        except:
+
+            response_data = default_result(401, False, 'child create fail')
+            json_response = response_data
+            return Response(json_response, status = '401')
+    else:
+        response_data = default_result(401, False, 'invalid date format')        
+        return Response(json_response, status = '401')
+    
+@csrf_exempt
+@api_view(["POST"])
+def child_detail_search(request):
+# 자녀프로필 조회
+    asia_seoul = pytz.timezone('Asia/Seoul')
+    now_asia_seoul = datetime.datetime.now(asia_seoul)    
+    body = request.body.decode("utf-8")
+    data = json.loads(body)
+    user_id = data.get("user_id")
+    child_name = data.get("child_name")
+    # user_type = data.get("user_type")
+
+    try:
+        select_child_ql = f''' select birth_date, gender from au_child where user_id = "{user_id}" and child_name = "{child_name}" '''
+        child_ql_com = sql_executer(select_child_ql)
+        birth_date = child_ql_com[0][0]
+        gender = child_ql_com[0][1]        
+        response_data = {
+                    "code":200,
+                    "success": True,
+                    "message" : "child successfully get",
+                    "data" : {"birth_date" : birth_date,
+                    "gender" : gender}
+                    }
+        json_response = response_data
+        return Response(json_response, status= status.HTTP_200_OK)
+    except:
+        response_data = {
+                    "code":401,
+                    "success": False,
+                    "message" : "child unsuccessfully get"
+                    }
+        json_response = response_data
+        return Response(json_response, status = '401')
+
+@csrf_exempt
+@api_view(["POST"])
+# 자녀 프로필 수정
+def child_detail_revise(request):
+    asia_seoul = pytz.timezone('Asia/Seoul')
+    now_asia_seoul = datetime.datetime.now(asia_seoul)    
+    body = request.body.decode("utf-8")
+    data = json.loads(body)
+    user_id = data.get("user_id")
+    child_name = data.get("child_name")
+    gender = data.get("gender")
+
+    try:
+        update_ql = f''' UPDATE au_child set child_name = "{child_name}", gender = "{gender}" where user_id = "{user_id}" '''
+        update_ql_com = sql_executer(update_ql)
+
+        #             }
+        response_data = default_result(200, True, 'user successfully updated')
+        json_response = response_data
+        return Response(json_response, status= status.HTTP_200_OK)
+    except:
+
+        response_data = default_result(401, False, 'user update fail')
+        json_response = response_data
+        return Response(json_response, status = '401')

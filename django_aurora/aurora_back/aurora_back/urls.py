@@ -29,7 +29,14 @@ from .views import admin_detail_search
 from .views import admin_detail_revise
 from .views import parent_list
 from .views import parent_detail_search
+from .views import evaluator_list
+from .views import evaluator_detail_search
+from .views import evaluator_detail_revise
 
+from .views import child_list
+from .views import child_create
+from .views import child_detail_search
+from .views import child_detail_revise
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -54,12 +61,20 @@ urlpatterns = [
     # path('api/parent_list/', parent_list, name='parent_list'),
     # path('api/parent_detail_search/', parent_detail_search, name='parent_detail_search'),
 
-    path('api/admin-list/', admin_list, name='admin_list'),
-    path('api/admin-create/', admin_create, name='admin_create'),
-    path('api/admin-detail-search/', admin_detail_search, name='admin_detail_search'),
-    path('api/admin-detail-revise/', admin_detail_revise, name='admin_detail_revise'),
-    path('api/parent-list/', parent_list, name='parent_list'),
-    path('api/parent-detail-search/', parent_detail_search, name='parent_detail_search'),
+    path('api/admin-list', admin_list, name='admin_list'),
+    path('api/admin-create', admin_create, name='admin_create'),
+    path('api/admin-detail-search', admin_detail_search, name='admin_detail_search'),
+    path('api/admin-detail-revise', admin_detail_revise, name='admin_detail_revise'),
+    path('api/parent-list', parent_list, name='parent_list'),
+    path('api/parent-detail-search', parent_detail_search, name='parent_detail_search'),
+    path('api/evaluator-list', evaluator_list, name='evaluator_list'),
+    path('api/evaluator-detail-search', evaluator_detail_search, name='evaluator_detail_search'),
+    path('api/evaluator-detail-revise', evaluator_detail_revise, name='evaluator_detail_revise'),
+
+    path('api/child-list', child_list, name='child_list'),
+    path('api/child-create', child_create, name='child_create'),
+    path('api/child-detail-search', child_detail_search, name='child_detail_search'),
+    path('api/child-detail-revise', child_detail_revise, name='child_detail_revise'),
 
 #    path('api/profile/', profile, name='profile'),
 
