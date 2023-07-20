@@ -14,8 +14,8 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.contrib.sessions.middleware import SessionMiddleware
 
-# strptime 때문에 import .
-from datetime import datetime
+# strptime 때문에 import . -- strptime 처리방법 ? => create child check 방법.
+# from datetime import datetime
 
 import os
 import sys
@@ -35,6 +35,11 @@ from django.contrib.auth.hashers import make_password
 from django.contrib.auth.hashers import check_password
 # 해시 비밀번호 점검 import
 # 해시 비밀번호 생성 
+
+def cur_time_asia():
+    asia_seoul = pytz.timezone('Asia/Seoul')
+    now_asia_seoul = datetime.now(asia_seoul)
+    return now_asia_seoul
 
 def hash_pwd_mk(password):
     try:
@@ -78,9 +83,6 @@ def validate_date_format(date_string):
     except ValueError:
         return False
 
-
-
-
 def sql_excuter_commit(sql_text):
 
     dbname = "aurora_db"    
@@ -106,7 +108,9 @@ def sql_excuter_commit(sql_text):
 def generate_token(user_id):
     # 토큰의 만료 시간 설정
     asia_seoul = pytz.timezone('Asia/Seoul')
-    now_asia_seoul = datetime.datetime.now(asia_seoul)
+    # now_asia_seoul = datetime.datetime.now(asia_seoul)
+    now_asia_seoul = datetime.now(asia_seoul)
+    now_asia_seoul = cur_time_asia()
     expiration_time = now_asia_seoul + datetime.timedelta(hours=12)
     # 토큰 페이로드(payload) 설정
     payload = {
@@ -122,21 +126,21 @@ def generate_token(user_id):
 
 
 
-def verify_token(request):
-    # 세션에서 토큰을 가져옴
-    SECRET_KEY = 'aurora_secret_key'
-    token = request.session.get('token')
-    try:
-        # 토큰의 유효성 검증
-        decode_token = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
-        return decode_token
-    except jwt.ExpiredSignatureError:
-        return 'token expired'
-    except jwt.InvalidTokenError:
-        return False
+# def verify_token(request):
+#     # 세션에서 토큰을 가져옴
+#     SECRET_KEY = 'aurora_secret_key'
+#     token = request.session.get('token')
+#     try:
+#         # 토큰의 유효성 검증
+#         decode_token = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
+#         return decode_token
+#     except jwt.ExpiredSignatureError:
+#         return 'token expired'
+#     except jwt.InvalidTokenError:
+#         return False
 
 #토큰을 변수로 받음 - 해당 토큰의 유효성만 검증 (만료시간, 토큰 key 값 검증.)
-def verify_token2(token):
+def verify_token(token):
     SECRET_KEY = 'aurora_secret_key'
     try:
         # 토큰의 유효성 검증
@@ -180,7 +184,7 @@ def login(request):
 
             SECRET_KEY = 'aurora_secret_key'
             token = generate_token(user_id)
-            token = verify_token2(token)
+            token = verify_token(token)
 
             # 토큰 분기 - 만료이거나, 옳지 않을때, 
             # 토큰 만료 if token == 'token expired'
@@ -217,35 +221,19 @@ def login(request):
                     return Response(json_response, status = 403)
                 else:
                     asia_seoul = pytz.timezone('Asia/Seoul')
-                    now_asia_seoul = datetime.datetime.now(asia_seoul)
+                    # now_asia_seoul = datetime.datetime.now(asia_seoul)
+                    now_asia_seoul = datetime.now(asia_seoul)
                     response_data = {
                         'success': True,
-                        'user_token': token,
+                        'message': 'login succeed',
+                        'data' : {'user_token': token,
                         'user_type': user_type,
-                        'pwd_check': hash_chk
+                        'pwd_check': hash_chk}
                         }
                     update_loginql = f''' UPDATE au_user set login_date = "{now_asia_seoul}" where user_id = "{user_id}" '''
                     updateql = sql_excuter_commit(update_loginql)
                     json_response = response_data
                     return Response(json_response, status = status.HTTP_200_OK)
-
-                # asia_seoul = pytz.timezone('Asia/Seoul')
-                # now_asia_seoul = datetime.datetime.now(asia_seoul)
-                # response_data = {
-                #     'success': True,
-                #     'user_token': token,
-                #     'user_type': user_type,
-                #     'pwd_check': hash_chk
-                #     }
-                # update_loginql = f''' UPDATE au_user set login_date = "{now_asia_seoul}" where user_id = "{user_id}" '''
-                # updateql = sql_excuter_commit(update_loginql)
-                # json_response = response_data
-                # return Response(json_response, status = status.HTTP_200_OK)
-
-                # Store the token in session with encoding             # 굳이 세션에 저장할 필요가 없습니다. 
-                # request.session['token'] = token
-                # request.session['token'] = token.decode('utf-8')
-
         else:
             return JsonResponse({
                 'success': False,
@@ -260,8 +248,9 @@ def login(request):
 def signup(request):
 
     asia_seoul = pytz.timezone('Asia/Seoul')
-    now_asia_seoul = datetime.datetime.now(asia_seoul)
-    
+    # now_asia_seoul = datetime.datetime.now(asia_seoul)
+    now_asia_seoul = datetime.now(asia_seoul)
+
     body = request.body.decode("utf-8")
     data = json.loads(body)
     user_id = data.get("user_id")
@@ -315,6 +304,7 @@ def signup(request):
             insertql = sql_excuter_commit(user_insert_ql)
             print("user is evaluator")
             response_data = {
+                    "code":200,
                     "success": True,
                     "message": "insert evaluator success",
                     }
@@ -376,7 +366,8 @@ def signup(request):
 @api_view(["POST"])
 def password_reset(request):
     asia_seoul = pytz.timezone('Asia/Seoul')
-    now_asia_seoul = datetime.datetime.now(asia_seoul)
+    # now_asia_seoul = datetime.datetime.now(asia_seoul)
+    now_asia_seoul = datetime.now(asia_seoul)
 
     body = request.body.decode("utf-8")
     data = json.loads(body)
@@ -395,21 +386,25 @@ def password_reset(request):
         update_resetql = f''' UPDATE au_user set user_pwd = "{hashed_password}" where user_id = "{user_id}" '''
         updateql = sql_executer(update_resetql)
 
-        response_data = {
-                    'success': True,
-                    'message': 'password successfullly reset'
-                    }
+        # response_data = {
+        #             'code':200,
+        #             'success': True,
+        #             'message': 'password successfullly reset'
+        #             }
+        # response_data = default_result(200,True,'password successfullly reset')
+        # json_response = response_data
 
-        # json_response = default_result('200','success','password successfully reset')
-        json_response = response_data
+        json_response = default_result('200','success','password successfully reset')
         return Response(json_response, status = status.HTTP_200_OK)
         #return Response(response_data, status = status.HTTP_200_OK)
     else:
-        response_data = {
-                    'success': False,
-                    'message': 'password reset False'
-                    }
-        json_response = response_data
+        # response_data = {
+        #             'success': False,
+        #             'message': 'password reset False'
+        #             }
+        
+        # json_response = response_data
+        json_response = default_result('400',False,'password reset False')
         return Response(json_response, status = status.HTTP_200_OK)
 
 @csrf_exempt
@@ -465,7 +460,8 @@ def password_change(request):
 @api_view(["POST"])
 def delete_user(request):
     asia_seoul = pytz.timezone('Asia/Seoul')
-    now_asia_seoul = datetime.datetime.now(asia_seoul)
+    # now_asia_seoul = datetime.datetime.now(asia_seoul)
+    now_asia_seoul = datetime.now(asia_seoul)
 
     body = request.body.decode("utf-8")
     data = json.loads(body)
@@ -494,7 +490,8 @@ def delete_user(request):
 @api_view(["POST"])
 def admin_list(request):
     asia_seoul = pytz.timezone('Asia/Seoul')
-    now_asia_seoul = datetime.datetime.now(asia_seoul)    
+    # now_asia_seoul = datetime.datetime.now(asia_seoul)    
+    now_asia_seoul = datetime.now(asia_seoul)    
     body = request.body.decode("utf-8")
     data = json.loads(body)
     # user_id = data.get("user_id")
@@ -522,7 +519,8 @@ def admin_list(request):
 @api_view(["POST"])
 def admin_create(request):
     asia_seoul = pytz.timezone('Asia/Seoul')
-    now_asia_seoul = datetime.datetime.now(asia_seoul)    
+    # now_asia_seoul = datetime.datetime.now(asia_seoul)    
+    now_asia_seoul = datetime.now(asia_seoul)    
     body = request.body.decode("utf-8")
     data = json.loads(body)
     user_id = data.get("user_id")
@@ -546,26 +544,30 @@ def admin_create(request):
         admin_insert = f''' INSERT INTO au_user (user_id, user_name, user_type, user_phone,user_email,user_pwd) VALUES ("{user_id}","{user_name}" ,"admin", "{user_phone}","{user_email}", "{hashed_pwd}") '''
 # back 7
         insertql = sql_executer(admin_insert)
-        response_data = {
-                    "success": True,
-                    "message": "admin create success"
-                    }
-        json_response = response_data
+        # response_data = {
+        #             "success": True,
+        #             "message": "admin create success"
+        #             }
+        # json_response = response_data
+        json_response = default_result(200,True, 'admin create success')        
         return Response(json_response, status= status.HTTP_200_OK)
+
     except:
-        response_data = {
-                    "success": False,
-                    "message": "admin create False"
-                    }        
-        # response_data = default_result('401', 'false', 'admin creation false')
-        json_response = response_data
+        # response_data = {
+        #             "success": False,
+        #             "message": "admin create False"
+        #             }        
+        # # response_data = default_result('401', 'false', 'admin creation false')
+        # json_response = response_data
+        json_response = default_result(401,False, 'admin create False')
         return Response(json_response, status = '401')
 
 @csrf_exempt
 @api_view(["POST"])
 def admin_detail_search(request):
     asia_seoul = pytz.timezone('Asia/Seoul')
-    now_asia_seoul = datetime.datetime.now(asia_seoul)    
+    # now_asia_seoul = datetime.datetime.now(asia_seoul)    
+    now_asia_seoul = datetime.now(asia_seoul)    
     body = request.body.decode("utf-8")
     data = json.loads(body)
     user_id = data.get("user_id")
@@ -590,21 +592,20 @@ def admin_detail_search(request):
         json_response = response_data
         return Response(json_response, status= status.HTTP_200_OK)
     except:
-        response_data = {
-                    "code": 400,
-                    "success": False,
-                    "message" : "admin_detail_list get False"
-                    }        
-        # response_data = default_result('401', 'false', 'admin search fail')
-        json_response = response_data
+        # response_data = {
+        #             "code": 401,
+        #             "success": False,
+        #             "message" : "admin_detail_list get False"
+        #             }        
+        # response_data = default_result('401', False, 'admin search fail')
+        json_response = default_result(401, False, 'admin search fail')
         return Response(json_response, status = '401')
     
 
 @csrf_exempt
 @api_view(["POST"])
-def admin_detail_revise(request):
-    asia_seoul = pytz.timezone('Asia/Seoul')
-    now_asia_seoul = datetime.datetime.now(asia_seoul)    
+def admin_detail_revise(request):   
+    now_asia_seoul = cur_time_asia()
     body = request.body.decode("utf-8")
     data = json.loads(body)
     user_id = data.get("user_id")
@@ -621,19 +622,19 @@ def admin_detail_revise(request):
         # admin_listql = f''' select user_id, user_name, user_email, user_phone from au_user where user_id = "{user_id}"  and user_type = "{user_type}" '''
         # admin_list = sql_executer(admin_listql)
         # admin_detail = admin_list[0]
-        response_data = {
-                    "success": True,
-                    "message" : "user successfully updated"
-                    }
-        # response_data = default_result('200','success','user successfully updated')
+        # response_data = {
+        #             "success": True,
+        #             "message" : "user successfully updated"
+        #             }
+        response_data = default_result(200,True,'user successfully updated')
         json_response = response_data
         return Response(json_response, status= status.HTTP_200_OK)
     except:
-        response_data = {
-                    "success": False,
-                    "message" : "user update fail"
-                    }
-        # response_data = default_result('401', 'false', 'user update fail')
+        # response_data = {
+        #             "success": False,
+        #             "message" : "user update fail"
+        #             }
+        response_data = default_result(401, False, 'user update fail')
         json_response = response_data
         return Response(json_response, status = '401')
     
@@ -641,8 +642,7 @@ def admin_detail_revise(request):
 @csrf_exempt
 @api_view(["POST"])
 def parent_list(request):
-    asia_seoul = pytz.timezone('Asia/Seoul')
-    now_asia_seoul = datetime.datetime.now(asia_seoul)    
+    now_asia_seoul = cur_time_asia()
     body = request.body.decode("utf-8")
     data = json.loads(body)
     user_id = data.get("user_id")
@@ -668,15 +668,14 @@ def parent_list(request):
                     "data": {"parent_list" : parent_list}
                     }    
 
-    # json_response = default_result('200','success','user successfully deleted')
+    # json_response = default_result('200',True,'user successfully deleted')
     json_response = response_data
     return Response(json_response, status= status.HTTP_200_OK)
 
 @csrf_exempt
 @api_view(["POST"])
 def parent_detail_search(request):
-    asia_seoul = pytz.timezone('Asia/Seoul')
-    now_asia_seoul = datetime.datetime.now(asia_seoul)    
+    now_asia_seoul = cur_time_asia()
     body = request.body.decode("utf-8")
     data = json.loads(body)
     user_id = data.get("user_id")
@@ -700,9 +699,8 @@ def parent_detail_search(request):
 
 @csrf_exempt
 @api_view(["POST"])
-def evaluator_list(request):
-    asia_seoul = pytz.timezone('Asia/Seoul')
-    now_asia_seoul = datetime.datetime.now(asia_seoul)    
+def evaluator_list(request):  
+    now_asia_seoul = cur_time_asia()
     body = request.body.decode("utf-8")
     data = json.loads(body)
     user_search = data.get("user_search")
@@ -712,7 +710,7 @@ def evaluator_list(request):
     eval_list = sql_executer(eval_listql)
     response_data = {
                     "success": True,
-                    "message": "success",
+                    "message": "evaluator list successfully get",
                     "data": {"eval_list": eval_list}
                     }
     json_response = response_data
@@ -720,9 +718,8 @@ def evaluator_list(request):
 
 @csrf_exempt
 @api_view(["POST"])
-def evaluator_detail_search(request):
-    asia_seoul = pytz.timezone('Asia/Seoul')
-    now_asia_seoul = datetime.datetime.now(asia_seoul)    
+def evaluator_detail_search(request):  
+    now_asia_seoul = cur_time_asia()
     body = request.body.decode("utf-8")
     data = json.loads(body)
     user_id = data.get("user_id")
@@ -753,9 +750,8 @@ def evaluator_detail_search(request):
 
 @csrf_exempt
 @api_view(["POST"])
-def evaluator_detail_revise(request):
-    asia_seoul = pytz.timezone('Asia/Seoul')
-    now_asia_seoul = datetime.datetime.now(asia_seoul)    
+def evaluator_detail_revise(request): 
+    now_asia_seoul = cur_time_asia()
     body = request.body.decode("utf-8")
     data = json.loads(body)
     user_id = data.get("user_id")
@@ -788,8 +784,7 @@ def evaluator_detail_revise(request):
 @csrf_exempt
 @api_view(["POST"])
 def child_list(request):
-    asia_seoul = pytz.timezone('Asia/Seoul')
-    now_asia_seoul = datetime.datetime.now(asia_seoul)    
+    now_asia_seoul = cur_time_asia()        
     body = request.body.decode("utf-8")
     data = json.loads(body)
     user_id = data.get("user_id")
@@ -818,8 +813,10 @@ def child_list(request):
 @csrf_exempt
 @api_view(["POST"])
 def child_create(request):
-    asia_seoul = pytz.timezone('Asia/Seoul')
-    now_asia_seoul = datetime.datetime.now(asia_seoul)    
+    # asia_seoul = pytz.timezone('Asia/Seoul')
+    # # now_asia_seoul = datetime.datetime.now(asia_seoul)    
+    # now_asia_seoul = datetime.now(asia_seoul)    
+    now_asia_seoul = cur_time_asia()
     body = request.body.decode("utf-8")
     data = json.loads(body)
     user_id = data.get("user_id")
@@ -852,8 +849,9 @@ def child_create(request):
 @api_view(["POST"])
 def child_detail_search(request):
 # 자녀프로필 조회
-    asia_seoul = pytz.timezone('Asia/Seoul')
-    now_asia_seoul = datetime.datetime.now(asia_seoul)    
+    # asia_seoul = pytz.timezone('Asia/Seoul')
+    # now_asia_seoul = datetime.datetime.now(asia_seoul)    
+    now_asia_seoul = cur_time_asia()
     body = request.body.decode("utf-8")
     data = json.loads(body)
     user_id = data.get("user_id")
@@ -887,8 +885,7 @@ def child_detail_search(request):
 @api_view(["POST"])
 # 자녀 프로필 수정
 def child_detail_revise(request):
-    asia_seoul = pytz.timezone('Asia/Seoul')
-    now_asia_seoul = datetime.datetime.now(asia_seoul)    
+    now_asia_seoul = cur_time_asia()
     body = request.body.decode("utf-8")
     data = json.loads(body)
     user_id = data.get("user_id")
@@ -899,12 +896,11 @@ def child_detail_revise(request):
         update_ql = f''' UPDATE au_child set child_name = "{child_name}", gender = "{gender}" where user_id = "{user_id}" '''
         update_ql_com = sql_executer(update_ql)
 
-        #             }
         response_data = default_result(200, True, 'user successfully updated')
         json_response = response_data
         return Response(json_response, status= status.HTTP_200_OK)
+    
     except:
-
         response_data = default_result(401, False, 'user update fail')
         json_response = response_data
         return Response(json_response, status = '401')
