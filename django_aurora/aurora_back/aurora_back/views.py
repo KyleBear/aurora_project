@@ -15,7 +15,8 @@ from rest_framework import status
 from django.contrib.sessions.middleware import SessionMiddleware
 
 # strptime 때문에 import . -- strptime 처리방법 ? => create child check 방법.
-from datetime import datetime
+# from datetime import datetime
+from datetime import datetime, timedelta
 
 import os
 import sys
@@ -111,7 +112,8 @@ def generate_token(user_id):
     # now_asia_seoul = datetime.datetime.now(asia_seoul)
     now_asia_seoul = datetime.now(asia_seoul)
     now_asia_seoul = cur_time_asia()
-    expiration_time = now_asia_seoul + datetime.timedelta(hours=12)
+    # expiration_time = now_asia_seoul + datetime.timedelta(hours=12)
+    expiration_time = now_asia_seoul + timedelta(hours=12)
     # 토큰 페이로드(payload) 설정
     payload = {
         'user_id': user_id,
@@ -411,8 +413,9 @@ def password_reset(request):
 @api_view(["POST"])
 def password_change(request):
     asia_seoul = pytz.timezone('Asia/Seoul')
-    now_asia_seoul = datetime.datetime.now(asia_seoul)
-    
+    # now_asia_seoul = datetime.datetime.now(asia_seoul)
+    now_asia_seoul = cur_time_asia()
+
     body = request.body.decode("utf-8")
     data = json.loads(body)
     user_id = data.get("user_id")
