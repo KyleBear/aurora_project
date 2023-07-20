@@ -15,7 +15,7 @@ from rest_framework import status
 from django.contrib.sessions.middleware import SessionMiddleware
 
 # strptime 때문에 import . -- strptime 처리방법 ? => create child check 방법.
-# from datetime import datetime
+from datetime import datetime
 
 import os
 import sys
