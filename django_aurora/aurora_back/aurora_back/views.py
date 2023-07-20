@@ -226,6 +226,7 @@ def login(request):
                     # now_asia_seoul = datetime.datetime.now(asia_seoul)
                     now_asia_seoul = datetime.now(asia_seoul)
                     response_data = {
+                        'code' : 200,
                         'success': True,
                         'message': 'login succeed',
                         'data' : {'user_token': token,
@@ -429,13 +430,12 @@ def password_change(request):
     user_check = f''' select user_pwd from au_user where user_id = "{user_id}" '''
     user_check_col = sql_executer(user_check)
     if len(user_check_col)>0:
-        cur_pwd = user_check_col[0][0]
-
-        # hashed_cur_pwd = hash_pwd_mk(cur_pwd)
-        hashed_cur_pwd = hash_pwd_mk(user_cur_pwd)
-
+        cur_pwd = user_check_col[0][0] #저장된 해시 비밀번호를 불러오기. - 회원가입떄 비번은 해시되서 저장됩니다. 
+        # hashed_cur_pwd = hash_pwd_mk(cur_pwd) - 저장된 DB비번을 해시상태로 만들필요는 있다 ?(x) 없다(o)
         # hash_chk = hash_pwd_chk(cur_pwd,hashed_cur_pwd)
-        hash_chk = hash_pwd_chk(cur_pwd,hashed_cur_pwd)
+
+
+        hash_chk = hash_pwd_chk(user_cur_pwd,cur_pwd)         # 그냥패스워드랑 해시 패스워드(DB) 비교해야되는데, 이미 해시 패스워드를 저장합니다. 
         if hash_chk == 'success':
             user_new_pwd = hash_pwd_mk(user_new_pwd)
             update_resetql = f''' UPDATE au_user set user_pwd = "{user_new_pwd}" where user_id = "{user_id}" '''
