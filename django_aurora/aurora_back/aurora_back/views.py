@@ -37,6 +37,22 @@ from django.contrib.auth.hashers import check_password
 # 해시 비밀번호 점검 import
 # 해시 비밀번호 생성 
 
+# aws boto3 툴 import
+import boto3
+# 랜덤 id 생성
+import random
+import string
+
+
+def awsfunction():
+    service_name = 's3'
+    endpoint_url = 'https://kr.object.ncloudstorage.com'
+    region_name = 'kr-standard'
+    access_key = '5D04FF07E7BB8C1EFD85'
+    secret_key = '0A1DF6FCAA172400D15C650C0E8F1892803C6F71'
+    aws_dict = {}
+    return print('aws')
+
 def cur_time_asia():
     asia_seoul = pytz.timezone('Asia/Seoul')
     now_asia_seoul = datetime.now(asia_seoul)
@@ -126,21 +142,6 @@ def generate_token(user_id):
     #request.session['token'] = token
     return token
 
-
-
-# def verify_token(request):
-#     # 세션에서 토큰을 가져옴
-#     SECRET_KEY = 'aurora_secret_key'
-#     token = request.session.get('token')
-#     try:
-#         # 토큰의 유효성 검증
-#         decode_token = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
-#         return decode_token
-#     except jwt.ExpiredSignatureError:
-#         return 'token expired'
-#     except jwt.InvalidTokenError:
-#         return False
-
 #토큰을 변수로 받음 - 해당 토큰의 유효성만 검증 (만료시간, 토큰 key 값 검증.)
 def verify_token(token):
     SECRET_KEY = 'aurora_secret_key'
@@ -165,11 +166,6 @@ def login(request):
         data = json.loads(body)
         user_id = data.get("user_id")
         user_pwd = data.get("user_pwd")
-
-# db 쪽과 현재 패스워드의 체크 필요함. - 해싱 체크 필요. - 중간에 메서드 필요함. 로그인에서는 
-
-        # user_check = f''' select user_id from au_user where user_id = "{user_id}" and user_pwd = "{user_pwd}" '''
-        # user = sql_excuter_commit(user_check)
 
 
         user_check = f''' select user_pwd from au_user where user_id = "{user_id}" '''
@@ -363,13 +359,11 @@ def signup(request):
 
     return JsonResponse({'error': 'invalid user_type ql'},status=401)
 
-    #return JsonResponse({'status': 'signup perfectly'}, status=200)
 
 @csrf_exempt
 @api_view(["POST"])
 def password_reset(request):
     asia_seoul = pytz.timezone('Asia/Seoul')
-    # now_asia_seoul = datetime.datetime.now(asia_seoul)
     now_asia_seoul = datetime.now(asia_seoul)
 
     body = request.body.decode("utf-8")
@@ -379,34 +373,21 @@ def password_reset(request):
 
     user_typeql = f''' select user_type from au_user where user_id = "{user_id}" '''
     userql = sql_executer(user_typeql)
-    user_type_chk = userql[0][0]
 
-    if user_type == user_type_chk:
-        # 해싱키로 pwd 를 1111 로 만들기. + update pwd 1111 
+    # user_type_chk = userql[0][0]
+    # try except 문으로 바꾸기. 혹은
+    # if user_type == user_type_chk:
+    if len(userql)>0 and user_type == userql[0][0]:        
         hashed_password = hash_pwd_mk('1111')
-
-        # update_resetql = f''' UPDATE au_user set user_pwd = "1111" where user_id = "{user_id}" '''
         update_resetql = f''' UPDATE au_user set user_pwd = "{hashed_password}" where user_id = "{user_id}" '''
         updateql = sql_executer(update_resetql)
 
-        # response_data = {
-        #             'code':200,
-        #             'success': True,
-        #             'message': 'password successfullly reset'
-        #             }
-        # response_data = default_result(200,True,'password successfullly reset')
-        # json_response = response_data
 
         json_response = default_result('200','success','password successfully reset')
         return Response(json_response, status = status.HTTP_200_OK)
-        #return Response(response_data, status = status.HTTP_200_OK)
+
     else:
-        # response_data = {
-        #             'success': False,
-        #             'message': 'password reset False'
-        #             }
-        
-        # json_response = response_data
+
         json_response = default_result('400',False,'password reset False')
         return Response(json_response, status = status.HTTP_200_OK)
 
@@ -424,9 +405,6 @@ def password_change(request):
     user_cur_pwd = data.get("user_cur_pwd")
     user_new_pwd = data.get("user_new_pwd")
 
-    #유저 존재 확인 
-    # user_check = f''' select user_id from au_user where user_id = "{user_id}" and user_pwd = "{user_cur_pwd}" '''
-    # user_check_col = sql_executer(user_check)
     user_check = f''' select user_pwd from au_user where user_id = "{user_id}" '''
     user_check_col = sql_executer(user_check)
     if len(user_check_col)>0:
@@ -445,13 +423,6 @@ def password_change(request):
             json_response = default_result( 401,False, 'matching user does not exist ')
             return Response(json_response, status = '401') 
 
-# aurora_backend 9
-        #update sql 
-        # password update 
-        # update_resetql = f''' UPDATE au_user set user_pwd = "{user_new_pwd}" where user_id = "{user_id}" '''
-        # updateql = sql_executer(update_resetql)
-# aurora_backend 9
-        # json_response = default_result('200','success','password successfully change')
         json_response = default_result(200,True,'password successfully change')
         return Response(json_response, status = status.HTTP_200_OK) 
     else:
@@ -547,11 +518,6 @@ def admin_create(request):
         admin_insert = f''' INSERT INTO au_user (user_id, user_name, user_type, user_phone,user_email,user_pwd) VALUES ("{user_id}","{user_name}" ,"admin", "{user_phone}","{user_email}", "{hashed_pwd}") '''
 # back 7
         insertql = sql_executer(admin_insert)
-        # response_data = {
-        #             "success": True,
-        #             "message": "admin create success"
-        #             }
-        # json_response = response_data
         json_response = default_result(200,True, 'admin create success')        
         return Response(json_response, status= status.HTTP_200_OK)
 
@@ -897,6 +863,165 @@ def child_detail_revise(request):
 
     try:
         update_ql = f''' UPDATE au_child set child_name = "{child_name}", gender = "{gender}" where user_id = "{user_id}" '''
+        update_ql_com = sql_executer(update_ql)
+
+        response_data = default_result(200, True, 'user successfully updated')
+        json_response = response_data
+        return Response(json_response, status= status.HTTP_200_OK)
+    
+    except:
+        response_data = default_result(401, False, 'user update fail')
+        json_response = response_data
+        return Response(json_response, status = '401')
+    
+
+
+
+@csrf_exempt
+@api_view(["POST"])
+def asset_list(request):
+    now_asia_seoul = cur_time_asia()
+    body = request.body.decode("utf-8")
+    data = json.loads(body)    
+    user_id = data.get("user_id")
+    # 빈 리스트를 생성합니다.
+    asset_list = []
+    # 튜플의 값을 설명해주는 딕셔너리로 전환한 후 하나씩 리스트에 추가하는 코드를 만들어주세요
+    asset_ql = f''' select asset_id, createdttm, asset_desc, asset_volume,asset_apply from au_asset '''
+    asset_tuple = sql_executer(asset_ql)
+    for record in asset_tuple:
+        asset_id, createdttm, asset_desc, asset_volume, asset_apply = record
+        asset_dict = {
+            "asset_id": asset_id,
+            "createdttm": createdttm,
+            "asset_desc": asset_desc,
+            "asset_volume": asset_volume,
+            "asset_apply": asset_apply,
+        }
+        asset_list.append(asset_dict) # 딕셔너리를 리스트에 추가
+
+    response_data = {
+                    "success": True,
+                    "message": "success",
+                    "data" : {"asset_list": asset_list}
+                    }
+
+    response_data = default_result(200, True, 'user successfully updated')
+    json_response = response_data
+    return Response(json_response, status= status.HTTP_200_OK)
+
+
+@csrf_exempt
+@api_view(["POST"])
+def delete_asset(request):
+    asia_seoul = pytz.timezone('Asia/Seoul')
+    now_asia_seoul = datetime.now(asia_seoul)
+
+    body = request.body.decode("utf-8")
+    data = json.loads(body)
+    user_id = data.get("user_id")
+    asset_id = data.get("asset_id")
+    asset_apply = data.get("asset_apply")
+
+    #에셋 존재 확인 (db 연동 체크)
+    # asset_check = f''' select asset_id from au_asset where asset_id = "{asset_id}" '''
+    asset_check = f''' select asset_name from au_asset where asset_id = "{asset_id}" '''
+    # 파일이름.
+    # 적용중인 에셋 삭제 불가.
+
+    asset_check_col = sql_executer(asset_check)
+    if len(asset_check_col)>0:
+        try:
+            # s3 에셋 삭제 추가하기. 
+            service_name = 's3'
+            endpoint_url = 'https://kr.object.ncloudstorage.com'
+            region_name = 'kr-standard'
+            access_key = '5D04FF07E7BB8C1EFD85'
+            secret_key = '0A1DF6FCAA172400D15C650C0E8F1892803C6F71'
+            s3 = boto3.client(service_name, endpoint_url=endpoint_url, aws_access_key_id=access_key,
+                      aws_secret_access_key=secret_key)
+
+            bucket_name = 'aurora'
+            object_name = f''' application_file/asset/"{asset_check_col[0][0]}" ''' #asset_check_col 은 에셋 파일이름입니다. .zip 파일. 
+            s3.delete_object(Bucket=bucket_name, Key=object_name)
+            # DB delete 추가             
+            delete_assetql = f''' Delete from au_asset where asset_id = "{asset_id}" '''
+            deleteql = sql_executer(delete_assetql)
+
+            json_response = default_result(200,True,'asset successfully deleted')
+            return Response(json_response, status = status.HTTP_200_OK)
+        except:
+            json_response = default_result(401,False, 'delete asset error ')
+            return Response(json_response, status = '401')
+
+    else:
+        # json_response = default_result('401', 'false', 'matching user does not exist ')
+        json_response = default_result(401,False, 'matching user does not exist ')
+        return Response(json_response, status = '401')
+
+@csrf_exempt
+@api_view(["POST"])
+def asset_upload(request):
+    asia_seoul = pytz.timezone('Asia/Seoul')
+    now_asia_seoul = datetime.now(asia_seoul)
+    region_name = 'kr-standard'
+    s3 = boto3.client('s3', aws_access_key_id='5D04FF07E7BB8C1EFD85',
+                  aws_secret_access_key='0A1DF6FCAA172400D15C650C0E8F1892803C6F71', region_name='kr-standard')
+    body = request.body.decode("utf-8")
+    data = json.loads(body)
+    asset_desc = data.get("asset_desc")
+
+    bucket_name = 'aurora'
+
+    if 'zipfile' in request.FILES:
+        file = request.FILES['zipfile']
+        if file.name.endswith('.zip'):
+            bucket_name = 'aurora'
+            # file_name_in_s3 = 'application_file/asset/' + file.name
+            # 원래는 file.name 을 업로드해야되지만, 에셋 id로 업로드합니다.  
+            file_name_in_s3 = 'application_file/asset/' + file.name
+            try:
+                s3.upload_fileobj(file, 'bucket_name', file_name_in_s3)
+            # 업로드, 
+                current_time = now_asia_seoul.strftime("%Y%m%d%H%M%S")  # 현재 시간을 문자열로 변환                    
+                random_alphabet = ''.join(random.choice(string.ascii_letters) for _ in range(5))  # 랜덤 알파벳 5개 생성
+                asset_id = 'A' + current_time + random_alphabet
+                # asset_id = str(uuid.uuid4())
+                # s3_url = https://kr.object.ncloudstorage.com/your_bucket_name/your_key
+                s3_url = f''' https://kr.object.ncloudstorage.com/"{bucket_name}"/"{file_name_in_s3}" '''
+            # DB 인서트
+                asset_insert = f''' insert into au_assets (asset_id, asset_name,createdttm, asset_desc, aseet_volume, asset_apply, asset_s3_url) VALUES ("{asset_id}", "{file.name}" ,"{now_asia_seoul}", "{asset_desc}", "N", "{s3_url}" ) '''
+                asset_insert_ql = sql_executer(asset_insert)
+                json_response = default_result(200,True,'asset successfully insertted')
+                return Response(json_response, status = status.HTTP_200_OK)
+            except:
+                json_response = default_result(400,False,'asset insertted False')
+                return Response(json_response, status = '401')
+    else:
+        json_response = default_result(400,False,'file is not zip file')
+        return Response(json_response, status = '401') 
+# upload s3 url 받기 
+# asset_s3_url
+
+@csrf_exempt
+@api_view(["POST"])
+# 에셋 적용.
+def asset_revise(request):
+    now_asia_seoul = cur_time_asia()
+    body = request.body.decode("utf-8")
+    data = json.loads(body)
+    asset_id = data.get("asset_id")
+
+    try:
+        update_ql = f''' UPDATE au_child set child_name = "{child_name}", gender = "{gender}" where user_id = "{user_id}" '''
+        update_ql_com = sql_executer(update_ql)
+
+        # 적용 모두 안함으로 업데이트 
+        update_ql = f''' UPDATE au_asset set asset_apply = "N" '''
+        update_ql_com = sql_executer(update_ql)
+
+        # 적용 에셋 id 만 적용으로 바뀜.
+        update_ql = f''' UPDATE au_asset set asset_apply = "Y" where asset_id = "{asset_id}" '''
         update_ql_com = sql_executer(update_ql)
 
         response_data = default_result(200, True, 'user successfully updated')
