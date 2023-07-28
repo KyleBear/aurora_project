@@ -552,7 +552,7 @@ def parent_list(request):
     user_id = data.get("user_id")
     user_type = data.get("user_type")
 
-    parent_list = []
+    parent_dicts = []
     try:
         parent_listql = f''' select user_id, user_name, create_date, login_date from au_user where (user_id like "%{user_id}%") and user_type = "{user_type}" '''
         parent_qlcom = sql_executer(parent_listql)
@@ -565,12 +565,12 @@ def parent_list(request):
                 "create_date": create_date,
                 "login_date": login_date
             }
-            parent_list.append(parent_dict) # 딕셔너리를 리스트에 추가
+            parent_dicts.append(parent_dict) # 딕셔너리를 리스트에 추가
 
         response_data = {
                     "success": True,
                     "message": "user select success",
-                    "data": {"parent_list" : parent_list}
+                    "data": {"parent_list" : parent_dict}
                     }
         
     except:
@@ -590,7 +590,6 @@ def parent_list(request):
 @token_required
 @api_view(["POST"])
 def parent_detail_search(request):
-    now_asia_seoul = cur_time_asia()
     body = request.body.decode("utf-8")
     data = json.loads(body)
     user_id = data.get("user_id")
@@ -598,14 +597,24 @@ def parent_detail_search(request):
 
     parent_listql = f''' select user_id, user_name, create_date, login_date from au_user where (user_id like "%{user_id}%") and user_type = "{user_type}" '''
     parent_list = sql_executer(parent_listql)
+    try:
+        user_name = parent_list[0][1]
+        create_date = parent_list[0][2]
+        login_date = parent_list[0][3]
 
-    response_data = {
-                    "success": True,
-                    "message": "parent detail search success",
-                    "data" :{"parent_list": parent_list}
+        response_data = {
+                        "success": True,
+                        "message": "parent detail search success",
+                        "data" :{ "user_id": user_id,
+                                "user_name": user_name,
+                                "create_date": create_date,
+                                "login_date": login_date,}
                     }
-    json_response = response_data
-    return Response(json_response, status= status.HTTP_200_OK)
+        json_response = response_data
+        return Response(json_response, status= status.HTTP_200_OK)
+    except:
+        json_response = default_result(400,False,'user does not exist')
+        return Response(json_response, status= 400)        
 
 
 @csrf_exempt
@@ -691,24 +700,21 @@ def child_list(request):
     body = request.body.decode("utf-8")
     data = json.loads(body)
     user_id = data.get("user_id")
-    child_list = []
+    child_dicts = []
     try:
         select_child_ql = f''' select child_name from au_child where user_id = "{user_id}" '''
         child_ql_com = sql_executer(select_child_ql)
 # ################
         for record in child_ql_com:
-            for child_name in record:
-                child_name = record
-                asset_dict = {
-                    "child_name": child_name
-                }
-                child_list.append(asset_dict) # 딕셔너리를 리스트에 추가
-# 3###############
+            child_name = record[0]
+            child_dict = {"child_name": child_name}
+            child_dicts.append(child_dict)
+
         response_data = {
                     "code": 200,
                     "success": True,
                     "message" : "child successfully get",
-                    "data" : {"child_list" : child_list}
+                    "data" : {"child_list" : child_dicts}
                     }
         json_response = response_data
         return Response(json_response, status= status.HTTP_200_OK)
