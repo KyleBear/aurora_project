@@ -551,14 +551,37 @@ def parent_list(request):
     data = json.loads(body)
     user_id = data.get("user_id")
     user_type = data.get("user_type")
-    parent_listql = f''' select user_id, user_name, create_date, login_date from au_user where (user_id like "%{user_id}%") and user_type = "{user_type}" '''
-    parent_list = sql_executer(parent_listql)
-    
-    response_data = {
+
+    parent_list = []
+    try:
+        parent_listql = f''' select user_id, user_name, create_date, login_date from au_user where (user_id like "%{user_id}%") and user_type = "{user_type}" '''
+        parent_qlcom = sql_executer(parent_listql)
+
+        for record in parent_qlcom:
+            user_id, user_name, create_date, login_date = record
+            parent_dict = {
+                "user_id": user_id,
+                "user_name": user_name,
+                "create_date": create_date,
+                "login_date": login_date
+            }
+            parent_list.append(parent_dict) # 딕셔너리를 리스트에 추가
+
+        response_data = {
                     "success": True,
                     "message": "user select success",
                     "data": {"parent_list" : parent_list}
-                    }    
+                    }
+        
+    except:
+        response_data = {
+                    "code": 401,
+                    "success": False,
+                    "message" : "parent select fail"
+                    }
+        
+        json_response = response_data
+        return Response(json_response, status = '401')
 
     json_response = response_data
     return Response(json_response, status= status.HTTP_200_OK)
@@ -668,15 +691,24 @@ def child_list(request):
     body = request.body.decode("utf-8")
     data = json.loads(body)
     user_id = data.get("user_id")
-
+    child_list = []
     try:
         select_child_ql = f''' select child_name from au_child where user_id = "{user_id}" '''
         child_ql_com = sql_executer(select_child_ql)
+# ################
+        for record in child_ql_com:
+            for child_name in record:
+                child_name = record
+                asset_dict = {
+                    "child_name": child_name
+                }
+                child_list.append(asset_dict) # 딕셔너리를 리스트에 추가
+# 3###############
         response_data = {
                     "code": 200,
                     "success": True,
                     "message" : "child successfully get",
-                    "data" : {                    "child_list" : child_ql_com}
+                    "data" : {"child_list" : child_list}
                     }
         json_response = response_data
         return Response(json_response, status= status.HTTP_200_OK)
@@ -946,59 +978,104 @@ def asset_revise(request):
 
 
 # UGC 콘텐츠
+# @csrf_exempt
+# @token_required
+# @api_view(["POST"])
+# def content_upload(request):
+#     now_asia_seoul = cur_time_asia()
+#     endpoint_url = 'https://kr.object.ncloudstorage.com'
+#     access_key = '5D04FF07E7BB8C1EFD85'
+#     secret_key = '0A1DF6FCAA172400D15C650C0E8F1892803C6F71'
+#     service_name = 's3'
+#     s3 = boto3.client(service_name, endpoint_url=endpoint_url, aws_access_key_id=access_key,aws_secret_access_key=secret_key)
+#     s3 = s3connect()
+#     bucket_name = 'aurora'
+
+#     if 'mp4file' in request.FILES:
+#         file = request.FILES['mp4file']
+#         if file.name.endswith('.mp4'):
+#             bucket_name = 'aurora'
+#             file_name_in_s3 = 'content/video/' + file.name
+#             try:
+#                 s3.upload_fileobj(file, bucket_name, file_name_in_s3)
+#             # 업로드,
+#                 content_id = str(uuid.uuid4())
+#                 s3_url = f''' https://kr.object.ncloudstorage.com/"{bucket_name}"/"{file_name_in_s3}" '''
+#                 json_data = request.POST.get('json_data', '{}')
+#                 data = json.loads(json_data)
+#                 content_title = data.get("content_title")
+#                 user_id = data.get("user_id")
+#                 child_id = data.get("child_id") #못찾으면 백엔드에서 select 문으로 찾기. 
+#                 child_name = data.get("child_name")
+#             # DB 인서트
+#                 try:
+#                     content_insert = f''' insert into au_ugccontent (content_id, content_title, child_id, user_id, child_name, content_upload_date, asset_s3_url) VALUES ("{content_id}","{content_title}","{child_id}","{user_id}","{child_name}","{now_asia_seoul}", "{s3_url}" ) '''
+#                     asset_insert_ql = sql_executer(content_insert)
+#                     json_response = default_result(200,True,'content successfully insertted to table')
+#                     return Response(json_response, status = status.HTTP_200_OK)
+#                 except:
+#                     json_response = default_result(400,False,'content table insert False')
+#                     return Response(json_response, status = '401')                    
+#             except botocore.exceptions.BotoCoreError as e:
+#                 json_response = default_result(400, False, 'S3 content insert failed: {}'.format(str(e)))
+#                 return Response(json_response, status='401')
+#             except botocore.exceptions.ClientError as e:
+#                 error_code = e.response['Error']['Code']
+#                 error_message = e.response['Error']['Message']
+#                 json_response = default_result(400, False, 'S3 content insert failed: {} - {}'.format(error_code, error_message))
+#                 return Response(json_response, status='401')
+#             except Exception as e:
+#                 json_response = default_result(400, False, 'S3 content insert failed: {}'.format(str(e)))
+#                 return Response(json_response, status='401')
+#             except:
+#                 json_response = default_result(400,False,'content insertted False')
+#                 return Response(json_response, status = '401')
+#     else:
+#         json_response = default_result(400,False,'file is not mp4 file')
+#         return Response(json_response, status = '401')
+
+# 콘텐츠 임시 변경
+
+import base64
+
 @csrf_exempt
 @token_required
 @api_view(["POST"])
 def content_upload(request):
-    now_asia_seoul = cur_time_asia()
-    endpoint_url = 'https://kr.object.ncloudstorage.com'
-    access_key = '5D04FF07E7BB8C1EFD85'
-    secret_key = '0A1DF6FCAA172400D15C650C0E8F1892803C6F71'
-    service_name = 's3'
-    s3 = boto3.client(service_name, endpoint_url=endpoint_url, aws_access_key_id=access_key,aws_secret_access_key=secret_key)
+    body = request.body.decode("utf-8")
+    data = json.loads(body)
     s3 = s3connect()
     bucket_name = 'aurora'
+    content_title = data.get("content_title")
+    user_id = data.get("user_id")
+    child_id = data.get("child_id") #못찾으면 백엔드에서 select 문으로 찾기. 
+    child_name = data.get("child_name")
 
-    if 'mp4file' in request.FILES:
-        file = request.FILES['mp4file']
-        if file.name.endswith('.mp4'):
-            bucket_name = 'aurora'
-            file_name_in_s3 = 'content/video/' + file.name
-            try:
-                s3.upload_fileobj(file, bucket_name, file_name_in_s3)
-            # 업로드,
-                content_id = str(uuid.uuid4())
-                s3_url = f''' https://kr.object.ncloudstorage.com/"{bucket_name}"/"{file_name_in_s3}" '''
-                json_data = request.POST.get('json_data', '{}')
-                data = json.loads(json_data)
-                content_title = data.get("content_title")
-                user_id = data.get("user_id")
-                child_id = data.get("child_id") #못찾으면 백엔드에서 select 문으로 찾기. 
-                child_name = data.get("child_name")
-            # DB 인서트
-                try:
-                    content_insert = f''' insert into au_ugccontent (content_id, content_title, child_id, user_id, child_name, content_upload_date, asset_s3_url) VALUES ("{content_id}","{content_title}","{child_id}","{user_id}","{child_name}","{now_asia_seoul}", "{s3_url}" ) '''
-                    asset_insert_ql = sql_executer(content_insert)
-                    json_response = default_result(200,True,'content successfully insertted to table')
-                    return Response(json_response, status = status.HTTP_200_OK)
-                except:
-                    json_response = default_result(400,False,'content table insert False')
-                    return Response(json_response, status = '401')                    
-            except botocore.exceptions.BotoCoreError as e:
-                json_response = default_result(400, False, 'S3 content insert failed: {}'.format(str(e)))
-                return Response(json_response, status='401')
-            except botocore.exceptions.ClientError as e:
-                error_code = e.response['Error']['Code']
-                error_message = e.response['Error']['Message']
-                json_response = default_result(400, False, 'S3 content insert failed: {} - {}'.format(error_code, error_message))
-                return Response(json_response, status='401')
-            except Exception as e:
-                json_response = default_result(400, False, 'S3 content insert failed: {}'.format(str(e)))
-                return Response(json_response, status='401')
-            except:
-                json_response = default_result(400,False,'content insertted False')
-                return Response(json_response, status = '401')
+    # 바이트 배열 받기
+    # raw_video_data_base64 = request.data.get('raw_video_data')
+
+    base64_string = request.data.get('raw_video_data')
+    # 바이트 배열을 이미지 파일로 다시 쓰기
+    if base64_string is not None:
+        base64_bytes = base64_string.encode('utf-8')
+        byte_array = base64.b64decode(base64_bytes)
+    # 바이트 배열을 이미지 파일로 다시 쓰기
+    # rb 파일에 쓰기 위한 것
+
+        content_uploaddir= "contents/video/"+content_title+".mp4"
+    # 경로 + content_title => contents/video
+
+    # wb 파일을 읽기 위한것
+        with open('output_from_json.jpg', 'wb') as output_file:
+            output_file.write(byte_array)
+        with open('output_from_json.jpg', 'rb') as output_file:
+            print(output_file)
+            s3.upload_fileobj(output_file, bucket_name, content_uploaddir)
+            # output_file.write(byte_array)
+        content_id = str(uuid.uuid4())
+        s3_url = f''' https://kr.object.ncloudstorage.com/"{bucket_name}"/"{content_title}" '''
+        json_response = default_result(200,True,'file mp4 is uploaded')
+        return Response(json_response, status = '200')
     else:
         json_response = default_result(400,False,'file is not mp4 file')
-        return Response(json_response, status = '401')
-
+        return Response(json_response, status = '400')
