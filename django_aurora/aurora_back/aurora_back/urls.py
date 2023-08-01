@@ -30,6 +30,9 @@ from .views import asset_upload
 from .views import delete_asset
 
 from .views import content_upload
+from .views import content_list
+from .views import content_detail_list
+from .views import content_detail_revise
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -64,5 +67,7 @@ urlpatterns = [
 
     path('api/content-upload', content_upload, name='content_upload'),
 
-
+    path('api/content-list', content_list, name='content_list'),
+    path('api/content-detail-list', content_detail_list, name='content_detail_list'),
+    path('api/content-detail-revise', content_detail_revise, name='content_detail_revise'),
 ]

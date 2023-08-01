@@ -452,6 +452,7 @@ def admin_list(request):
     admin_list = sql_executer(admin_listql)
 
     response_data = {
+                    "code": 200,
                     "success": True,
                     "message": "success",
                     "data" : {"adminlist": admin_list}
@@ -568,6 +569,7 @@ def parent_list(request):
             parent_dicts.append(parent_dict) # 딕셔너리를 리스트에 추가
 
         response_data = {
+                    "code": 200,
                     "success": True,
                     "message": "user select success",
                     "data": {"parent_list" : parent_dict}
@@ -603,6 +605,7 @@ def parent_detail_search(request):
         login_date = parent_list[0][3]
 
         response_data = {
+                        "code": 200,
                         "success": True,
                         "message": "parent detail search success",
                         "data" :{ "user_id": user_id,
@@ -702,14 +705,21 @@ def child_list(request):
     user_id = data.get("user_id")
     child_dicts = []
     try:
-        select_child_ql = f''' select child_name from au_child where user_id = "{user_id}" '''
+        select_child_ql = f''' select child_name,birth_date,gender,child_id from au_child where user_id = "{user_id}" '''
         child_ql_com = sql_executer(select_child_ql)
 # ################
         for record in child_ql_com:
             child_name = record[0]
-            child_dict = {"child_name": child_name}
+            birth_date = record[1]
+            gender = record[2]
+            child_id = record[3]
+            child_dict = {"child_name": child_name,
+                          "birth_date": birth_date,
+                          "gender": gender,
+                          "child_id": child_id
+                          }
             child_dicts.append(child_dict)
-
+# 이름,생년, 성별, 자녀아이디
         response_data = {
                     "code": 200,
                     "success": True,
@@ -844,6 +854,7 @@ def asset_list(request):
         asset_list.append(asset_dict) # 딕셔너리를 리스트에 추가
 
     response_data = {
+                    "code": 200,
                     "success": True,
                     "message": "success",
                     "data" : {"asset_list": asset_list}
@@ -1048,6 +1059,7 @@ import base64
 @token_required
 @api_view(["POST"])
 def content_upload(request):
+    now_asia_seoul = cur_time_asia()
     body = request.body.decode("utf-8")
     data = json.loads(body)
     s3 = s3connect()
@@ -1079,9 +1091,155 @@ def content_upload(request):
             s3.upload_fileobj(output_file, bucket_name, content_uploaddir)
             # output_file.write(byte_array)
         content_id = str(uuid.uuid4())
-        s3_url = f''' https://kr.object.ncloudstorage.com/"{bucket_name}"/"{content_title}" '''
-        json_response = default_result(200,True,'file mp4 is uploaded')
-        return Response(json_response, status = '200')
+        # s3_url = f''' https://kr.object.ncloudstorage.com/"{bucket_name}"/"{content_title}" '''
+        s3_url = f'https://kr.object.ncloudstorage.com/{bucket_name}/{content_title}'
+        # s3_url = str(s3_url)
+        try:
+            # content_insert = f''' insert into au_ugccontent (content_id, content_title, child_id, user_id, child_name, content_upload_date, asset_s3_url) VALUES ("{content_id}","{content_title}","{child_id}","{user_id}","{child_name}","{now_asia_seoul}", "{s3_url}" ) '''
+            content_insert = f''' insert into au_ugccontent (content_id, content_title, child_id, user_id, child_name, content_upload_date, content_s3_url) VALUES ("{content_id}","{content_title}","{child_id}","{user_id}","{child_name}","{now_asia_seoul}","{s3_url}" ) '''
+            # content_insert = f''' insert into au_ugccontent (content_id, content_title, child_id, user_id, child_name, content_upload_date) VALUES ("{content_id}","{content_title}","{child_id}","{user_id}","{child_name}","{now_asia_seoul}" ) '''
+            asset_insert_ql = sql_executer(content_insert)
+            json_response = default_result(200,True,'content successfully insertted to table')
+            return Response(json_response, status = status.HTTP_200_OK)
+        except:
+            json_response = default_result(400,False,'content table insert False')
+            return Response(json_response, status = '401')
     else:
         json_response = default_result(400,False,'file is not mp4 file')
         return Response(json_response, status = '400')
+
+@csrf_exempt
+@token_required
+@api_view(["POST"])
+def content_list(request):
+    body = request.body.decode("utf-8")
+    data = json.loads(body)
+    content_title = data.get("content_title")
+
+    user_id = data.get("user_id") #해당계정의 user_id
+    sort_order = data.get("sort_order")
+    content_list = []
+
+    if sort_order == 'like':
+        try:
+            content_ql = f''' SELECT content_title ,content_s3_url,like_count,content_upload_date from au_ugccontent au left join au_likecount as al on au.content_id = al.content_id where user_id != "{user_id}" order by like_count desc; '''
+            content_tuple = sql_executer(content_ql)
+            for record in content_tuple:
+                content_title, content_s3_url, like_count,content_upload_date = record
+                content_dict = {
+                    "content_title": content_title,
+                    "content_s3_url": content_s3_url,
+                    "like_count": like_count,
+                    "content_upload_date":content_upload_date
+                }
+                content_list.append(content_dict) # 딕셔너리를 리스트에 추가
+            response_data = {
+                            "code": 200,
+                            "success": True,
+                            "message": "success",
+                            "data" : {"content_list": content_list}
+                            }
+            json_response = response_data
+            return Response(json_response, status= status.HTTP_200_OK)
+        except:
+            json_response = default_result(400,False,'content table select False')
+            return Response(json_response, status = '401')        
+    elif sort_order == 'time':
+        try:
+            content_ql = f''' SELECT content_title ,content_s3_url,like_count,content_upload_date from au_ugccontent au left join au_likecount as al on au.content_id = al.content_id where user_id != "{user_id}" order by content_upload_date desc; '''
+            content_tuple = sql_executer(content_ql)
+            for record in content_tuple:
+                content_title, content_s3_url, like_count,content_upload_date = record
+                content_dict = {
+                    "content_title": content_title,
+                    "content_s3_url": content_s3_url,
+                    "like_count": like_count,
+                    "content_upload_date":content_upload_date
+                }
+                content_list.append(content_dict) # 딕셔너리를 리스트에 추가
+            response_data = {
+                            "code": 200,
+                            "success": True,
+                            "message": "success",
+                            "data" : {"content_list": content_list}
+                            }
+            json_response = response_data
+            return Response(json_response, status= status.HTTP_200_OK)
+        except:
+            json_response = default_result(400,False,'content table select False')
+            return Response(json_response, status = '401')
+    else:
+        json_response = default_result(401,False,'check sort_order')
+        return Response(json_response, status = '401')
+    
+# 상세 ㅠㅜ
+@csrf_exempt
+@token_required
+@api_view(["POST"])
+def content_detail_list(request):
+    now_asia_seoul = cur_time_asia()
+    body = request.body.decode("utf-8")
+    data = json.loads(body)
+    content_title = data.get("content_title")
+    content_list = []
+    try:
+        content_ql = f''' SELECT content_title ,content_s3_url,like_count,content_upload_date from au_ugccontent au left join au_likecount as al on au.content_id = al.content_id where content_title = "{content_title}" order by like_count desc; '''
+        content_tuple = sql_executer(content_ql)
+        for record in content_tuple:
+            content_title, content_s3_url, like_count,content_upload_date = record
+            content_dict = {
+                "content_title": content_title,
+                "content_s3_url": content_s3_url,
+                "like_count": like_count,
+                "content_upload_date":content_upload_date
+            }
+            content_list.append(content_dict) # 딕셔너리를 리스트에 추가
+        response_data = {
+                        "code": 200,
+                        "success": True,
+                        "message": "success",
+                        "data" : {"content_list": content_list}
+                        }
+        json_response = response_data
+        return Response(json_response, status= status.HTTP_200_OK)
+    except:
+        json_response = default_result(400,False,'content table select False')
+        return Response(json_response, status = '401')        
+
+
+@csrf_exempt
+@token_required
+@api_view(["POST"])
+def content_detail_revise(request):
+    now_asia_seoul = cur_time_asia()
+    body = request.body.decode("utf-8")
+    data = json.loads(body)
+    content_id = data.get("content_id")
+    child_id = data.get("child_id")
+    content_title = data.get("content_title")
+    like_yn = data.get("like_yn")
+# 좋아요 삽입,
+    if like_yn == "Y":
+        try:
+            content_ql = f''' INSERT INTO au_likecount (content_id, like_count, child_id, update_date , create_date) VALUES ( "{content_id}", 1, "{child_id}","{now_asia_seoul}", "{now_asia_seoul}" ) '''
+            content_tuple = sql_executer(content_ql)
+
+            json_response = default_result(200,True,'video like successfully inserted')
+            return Response(json_response, status = status.HTTP_200_OK)
+        except:
+            json_response = default_result(400,False,'already you got like in this video')
+            return Response(json_response, status = '401')            
+# 좋아요 삭제,
+    elif like_yn == "N":
+        try:
+            content_ql = f''' DELETE from au_likecount where content_id = "{content_id}" and child_id = "{child_id}" '''
+            content_tuple = sql_executer(content_ql)
+
+            json_response = default_result(200,True,'video like successfully deleted')
+            return Response(json_response, status= status.HTTP_200_OK)
+        except:
+            json_response = default_result(400,False,'content table delete False')
+            return Response(json_response, status = '401')    
+    else :
+            json_response = default_result(400,False,'content table select False')
+            return Response(json_response, status = '401')        
