@@ -811,12 +811,13 @@ def child_detail_revise(request):
     now_asia_seoul = cur_time_asia()
     body = request.body.decode("utf-8")
     data = json.loads(body)
-    user_id = data.get("user_id")
     child_name = data.get("child_name")
+    child_id = data.get("child_id")
     gender = data.get("gender")
 
     try:
-        update_ql = f''' UPDATE au_child set child_name = "{child_name}", gender = "{gender}" where user_id = "{user_id}" '''
+        # update_ql = f''' UPDATE au_child set child_name = "{child_name}", gender = "{gender}" where user_id = "{user_id}" '''
+        update_ql = f''' UPDATE au_child set child_name = "{child_name}", gender = "{gender}" where child_id = "{child_id}" '''
         update_ql_com = sql_executer(update_ql)
 
         response_data = default_result(200, True, 'user successfully updated')
