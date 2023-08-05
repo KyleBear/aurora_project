@@ -40,7 +40,8 @@ import botocore.exceptions
 
 # 모든 api에서 토큰검증
 from functools import wraps
-
+# 
+from botocore.client import Config
 
 def s3connect():
     service_name = 's3'
@@ -171,6 +172,24 @@ def token_required(f):
     return decorator
 
 # 
+
+def create_presigned_url(bucket_name, object_name, expiration=3600):
+    s3_client = boto3.client('s3', 
+                             region_name='kr-standard',
+                             endpoint_url='https://kr.object.ncloudstorage.com',
+    # access_key = '5D04FF07E7BB8C1EFD85'
+    # secret_key = '0A1DF6FCAA172400D15C650C0E8F1892803C6F71'
+                             aws_access_key_id='5D04FF07E7BB8C1EFD85',
+                             aws_secret_access_key='0A1DF6FCAA172400D15C650C0E8F1892803C6F71',
+                             config=Config(signature_version='s3v4'))
+    try:
+        response = s3_client.generate_presigned_url('get_object',
+                                                    Params={'Bucket': bucket_name,
+                                                            'Key': object_name},
+                                                    ExpiresIn=expiration)
+    except Exception as e:
+        return None
+    return response
 
 @csrf_exempt
 @api_view(["POST"])
@@ -808,15 +827,13 @@ def child_detail_search(request):
 @api_view(["POST"])
 # 자녀 프로필 수정
 def child_detail_revise(request):
-    now_asia_seoul = cur_time_asia()
     body = request.body.decode("utf-8")
     data = json.loads(body)
     child_name = data.get("child_name")
     child_id = data.get("child_id")
     gender = data.get("gender")
-
+    
     try:
-        # update_ql = f''' UPDATE au_child set child_name = "{child_name}", gender = "{gender}" where user_id = "{user_id}" '''
         update_ql = f''' UPDATE au_child set child_name = "{child_name}", gender = "{gender}" where child_id = "{child_id}" '''
         update_ql_com = sql_executer(update_ql)
 
@@ -836,10 +853,6 @@ def child_detail_revise(request):
 @token_required
 @api_view(["POST"])
 def asset_list(request):
-    now_asia_seoul = cur_time_asia()
-    body = request.body.decode("utf-8")
-    data = json.loads(body)    
-    user_id = data.get("user_id")
     asset_list = []
     asset_ql = f''' select asset_id, createdttm, asset_desc, asset_volume,asset_apply from au_asset '''
     asset_tuple = sql_executer(asset_ql)
@@ -871,11 +884,8 @@ def asset_list(request):
 @api_view(["POST"])
 def delete_asset(request):
     asia_seoul = pytz.timezone('Asia/Seoul')
-    now_asia_seoul = datetime.now(asia_seoul)
-
     body = request.body.decode("utf-8")
     data = json.loads(body)
-    user_id = data.get("user_id")
     asset_id = data.get("asset_id")
     asset_apply = data.get("asset_apply")
     asset_check = f''' select asset_name from au_asset where asset_id = "{asset_id}" '''
@@ -905,12 +915,12 @@ def delete_asset(request):
 def asset_upload(request):
     now_asia_seoul = cur_time_asia()
     endpoint_url = 'https://kr.object.ncloudstorage.com'
-    # region_name = 'kr-standard'
+
     access_key = '5D04FF07E7BB8C1EFD85'
     secret_key = '0A1DF6FCAA172400D15C650C0E8F1892803C6F71'
     service_name = 's3'
 
-    s3 = boto3.client(service_name, endpoint_url=endpoint_url, aws_access_key_id=access_key,aws_secret_access_key=secret_key)
+    # s3 = boto3.client(service_name, endpoint_url=endpoint_url, aws_access_key_id=access_key,aws_secret_access_key=secret_key)
     s3 = s3connect()
     bucket_name = 'aurora'
 
@@ -923,11 +933,13 @@ def asset_upload(request):
             file_name_in_s3 = 'application_file/asset/' + file.name
             try:
                 s3.upload_fileobj(file, bucket_name, file_name_in_s3)
+
             # 업로드, 
                 current_time = now_asia_seoul.strftime("%Y%m%d%H%M%S")  # 현재 시간을 문자열로 변환                    
                 random_alphabet = ''.join(random.choice(string.ascii_letters) for _ in range(5))  # 랜덤 알파벳 5개 생성
                 asset_id = 'A' + current_time + random_alphabet
                 s3_url = f''' https://kr.object.ncloudstorage.com/"{bucket_name}"/"{file_name_in_s3}" '''
+
             # DB 인서트
                 json_data = request.POST.get('json_data', '{}')
                 data = json.loads(json_data)
@@ -995,63 +1007,6 @@ def asset_revise(request):
 #  지도안 
 
 
-# UGC 콘텐츠
-# @csrf_exempt
-# @token_required
-# @api_view(["POST"])
-# def content_upload(request):
-#     now_asia_seoul = cur_time_asia()
-#     endpoint_url = 'https://kr.object.ncloudstorage.com'
-#     access_key = '5D04FF07E7BB8C1EFD85'
-#     secret_key = '0A1DF6FCAA172400D15C650C0E8F1892803C6F71'
-#     service_name = 's3'
-#     s3 = boto3.client(service_name, endpoint_url=endpoint_url, aws_access_key_id=access_key,aws_secret_access_key=secret_key)
-#     s3 = s3connect()
-#     bucket_name = 'aurora'
-
-#     if 'mp4file' in request.FILES:
-#         file = request.FILES['mp4file']
-#         if file.name.endswith('.mp4'):
-#             bucket_name = 'aurora'
-#             file_name_in_s3 = 'content/video/' + file.name
-#             try:
-#                 s3.upload_fileobj(file, bucket_name, file_name_in_s3)
-#             # 업로드,
-#                 content_id = str(uuid.uuid4())
-#                 s3_url = f''' https://kr.object.ncloudstorage.com/"{bucket_name}"/"{file_name_in_s3}" '''
-#                 json_data = request.POST.get('json_data', '{}')
-#                 data = json.loads(json_data)
-#                 content_title = data.get("content_title")
-#                 user_id = data.get("user_id")
-#                 child_id = data.get("child_id") #못찾으면 백엔드에서 select 문으로 찾기. 
-#                 child_name = data.get("child_name")
-#             # DB 인서트
-#                 try:
-#                     content_insert = f''' insert into au_ugccontent (content_id, content_title, child_id, user_id, child_name, content_upload_date, asset_s3_url) VALUES ("{content_id}","{content_title}","{child_id}","{user_id}","{child_name}","{now_asia_seoul}", "{s3_url}" ) '''
-#                     asset_insert_ql = sql_executer(content_insert)
-#                     json_response = default_result(200,True,'content successfully insertted to table')
-#                     return Response(json_response, status = status.HTTP_200_OK)
-#                 except:
-#                     json_response = default_result(400,False,'content table insert False')
-#                     return Response(json_response, status = '401')                    
-#             except botocore.exceptions.BotoCoreError as e:
-#                 json_response = default_result(400, False, 'S3 content insert failed: {}'.format(str(e)))
-#                 return Response(json_response, status='401')
-#             except botocore.exceptions.ClientError as e:
-#                 error_code = e.response['Error']['Code']
-#                 error_message = e.response['Error']['Message']
-#                 json_response = default_result(400, False, 'S3 content insert failed: {} - {}'.format(error_code, error_message))
-#                 return Response(json_response, status='401')
-#             except Exception as e:
-#                 json_response = default_result(400, False, 'S3 content insert failed: {}'.format(str(e)))
-#                 return Response(json_response, status='401')
-#             except:
-#                 json_response = default_result(400,False,'content insertted False')
-#                 return Response(json_response, status = '401')
-#     else:
-#         json_response = default_result(400,False,'file is not mp4 file')
-#         return Response(json_response, status = '401')
-
 # 콘텐츠 임시 변경
 
 import base64
@@ -1069,45 +1024,53 @@ def content_upload(request):
     user_id = data.get("user_id")
     child_id = data.get("child_id") #못찾으면 백엔드에서 select 문으로 찾기. 
     child_name = data.get("child_name")
+    content_id = str(uuid.uuid4())
 
-    # 바이트 배열 받기
-    # raw_video_data_base64 = request.data.get('raw_video_data')
 
     base64_string = request.data.get('raw_video_data')
-    # 바이트 배열을 이미지 파일로 다시 쓰기
+    base64_thumbnail = request.data.get('raw_thumbnail')
     if base64_string is not None:
         base64_bytes = base64_string.encode('utf-8')
         byte_array = base64.b64decode(base64_bytes)
-    # 바이트 배열을 이미지 파일로 다시 쓰기
-    # rb 파일에 쓰기 위한 것
-
+    # rb - 파일에 쓰기 위한 것     # wb - 파일을 읽기 위한것
         content_uploaddir= "contents/video/"+content_title+".mp4"
-    # 경로 + content_title => contents/video
-
-    # wb 파일을 읽기 위한것
         with open('output_from_json.jpg', 'wb') as output_file:
             output_file.write(byte_array)
         with open('output_from_json.jpg', 'rb') as output_file:
-            print(output_file)
             s3.upload_fileobj(output_file, bucket_name, content_uploaddir)
-            # output_file.write(byte_array)
-        content_id = str(uuid.uuid4())
-        # s3_url = f''' https://kr.object.ncloudstorage.com/"{bucket_name}"/"{content_title}" '''
-        s3_url = f'https://kr.object.ncloudstorage.com/{bucket_name}/{content_title}'
-        # s3_url = str(s3_url)
+        # s3_url = f'https://kr.object.ncloudstorage.com/{bucket_name}/{content_title}'
+        s3_url = f'https://kr.object.ncloudstorage.com/{bucket_name}/contents/video/{content_title}'
+
+        if base64_thumbnail is not None:
+            base64_bytes_thumb = base64_thumbnail.encode('utf-8')
+            byte_array_thumb = base64.b64decode(base64_bytes_thumb)        
+            content_uploaddir_thumb= "contents/thumbnail/"+content_title+".png"
+            with open('output_thumnail_json.png', 'wb') as output_file:
+                output_file.write(byte_array_thumb)
+            with open('output_thumnail_json.png', 'rb') as output_file:
+                print(output_file)
+                s3.upload_fileobj(output_file, bucket_name, content_uploaddir_thumb)
+
+            # s3_thumbnail_url = f'https://kr.object.ncloudstorage.com/{bucket_name}/{content_title}'
+
         try:
-            # content_insert = f''' insert into au_ugccontent (content_id, content_title, child_id, user_id, child_name, content_upload_date, asset_s3_url) VALUES ("{content_id}","{content_title}","{child_id}","{user_id}","{child_name}","{now_asia_seoul}", "{s3_url}" ) '''
             content_insert = f''' insert into au_ugccontent (content_id, content_title, child_id, user_id, child_name, content_upload_date, content_s3_url) VALUES ("{content_id}","{content_title}","{child_id}","{user_id}","{child_name}","{now_asia_seoul}","{s3_url}" ) '''
-            # content_insert = f''' insert into au_ugccontent (content_id, content_title, child_id, user_id, child_name, content_upload_date) VALUES ("{content_id}","{content_title}","{child_id}","{user_id}","{child_name}","{now_asia_seoul}" ) '''
-            asset_insert_ql = sql_executer(content_insert)
+            content_insert_ql = sql_executer(content_insert)
             json_response = default_result(200,True,'content successfully insertted to table')
             return Response(json_response, status = status.HTTP_200_OK)
+
         except:
             json_response = default_result(400,False,'content table insert False')
             return Response(json_response, status = '401')
+
+
     else:
         json_response = default_result(400,False,'file is not mp4 file')
         return Response(json_response, status = '400')
+
+
+
+
 
 @csrf_exempt
 @token_required
@@ -1121,6 +1084,10 @@ def content_list(request):
     sort_order = data.get("sort_order")
     content_list = []
 
+
+
+# 목록 조회를 할떄마다 presigned url 로 변경
+
     if sort_order == 'like':
         try:
             content_ql = f''' SELECT content_title ,content_s3_url,like_count,content_upload_date from au_ugccontent au left join au_likecount as al on au.content_id = al.content_id where user_id != "{user_id}" order by like_count desc; '''
@@ -1129,6 +1096,7 @@ def content_list(request):
                 content_title, content_s3_url, like_count,content_upload_date = record
                 content_dict = {
                     "content_title": content_title,
+                    # create_s3_url
                     "content_s3_url": content_s3_url,
                     "like_count": like_count,
                     "content_upload_date":content_upload_date
@@ -1224,7 +1192,6 @@ def content_detail_revise(request):
         try:
             content_ql = f''' INSERT INTO au_likecount (content_id, like_count, child_id, update_date , create_date) VALUES ( "{content_id}", 1, "{child_id}","{now_asia_seoul}", "{now_asia_seoul}" ) '''
             content_tuple = sql_executer(content_ql)
-
             json_response = default_result(200,True,'video like successfully inserted')
             return Response(json_response, status = status.HTTP_200_OK)
         except:
@@ -1244,3 +1211,109 @@ def content_detail_revise(request):
     else :
             json_response = default_result(400,False,'content table select False')
             return Response(json_response, status = '401')        
+
+# 
+# COU.7.1 #charsi list
+@csrf_exempt
+@token_required
+@api_view(["POST"])
+def creativity_charsi_list(request):
+    now_asia_seoul = cur_time_asia()
+    body = request.body.decode("utf-8")
+    data = json.loads(body)
+
+    child_id = data.get("child_id")
+    try :
+        #child age 
+        child_birth_ql = f''' SELECT left(birth_date,10)  from au_child where child_id = "{child_id}"  '''
+        birth_date = sql_executer(child_birth_ql)[0]
+        birth_date_time = datetime.strptime(birth_date, '%Y-%m-%d')
+        target_age = now_asia_seoul.year - birth_date_time.year - ((now_asia_seoul.month, now_asia_seoul.day) < (birth_date_time.month, birth_date_time.day))
+        
+        charsili_ql = f''' select distinct level_id ,level_name from au_charsilevel where target_age = "{target_age}" order by "level_id" '''
+        charsi_list = sql_executer(charsili_ql)
+        char_lists = []
+
+        fin_charql = f''' select max(level_number) au_creative_behavior where child_id = "{child_id}" '''
+        fin_charsi = sql_executer(fin_charql)[0]
+
+# child aging, target charsi change. 
+# finished charsi
+        for record in charsi_list:
+            level_id,level_name = record
+
+            char_dict = { 
+                "level_id":level_id,
+                "level_name":level_name
+             }
+            char_lists.append(char_dict)
+
+# give me charsi number that child completed.
+# in au_creativity behavior, i can find max number of charsi id, and when i coordinate with charsi. 
+        response_data = {
+                "code": 200,
+                "success": True,
+                "message": "success",
+                "data" : {"char_list": char_lists,
+                          "fin_charsi": fin_charsi
+                          }
+                }
+        json_response = response_data
+        return Response(json_response, status= status.HTTP_200_OK)
+    
+    except:
+        json_response = default_result(400,False,'charsi table select False')
+        return Response(json_response, status = '401')   
+
+def creativity_file_save(request):
+# 대상테이블 # 창의력 활동 
+    now_asia_seoul = cur_time_asia()
+    body = request.body.decode("utf-8")
+    data = json.loads(body)
+    user_id = data.get("user_id")
+    child_id = data.get("child_id")
+    level_num = data.get("level_num")
+    level_name = data.get("level_name")
+    base64_mp3 = request.data.get('raw_sound_data')
+    # 바이트 배열을 이미지 파일로 다시 쓰기
+    base64_img = request.data.get('raw_img_data')
+
+# create s3 url 
+    try:
+        s3 = s3connect()
+        bucket_name = 'aurora'
+
+        if base64_mp3 is not None:
+            base64_bytes = base64_mp3.encode('utf-8')
+            byte_array = base64.b64decode(base64_bytes)
+
+            content_uploaddir= "creativity/sound/"+user_id+"/"+child_id+"/"+level_name+".mp3"
+            with open('output_from_json.mp3', 'wb') as output_file:
+                output_file.write(byte_array)
+            with open('output_from_json.mp3', 'rb') as output_file:
+                s3.upload_fileobj(output_file, bucket_name, content_uploaddir)
+            s3_mp3_url = f'https://kr.object.ncloudstorage.com/{bucket_name}/creativity/sound/{user_id}/{child_id}/{level_name}.mp3'
+            insert_ql1 = f''' INSERT INTO au_creative_behavior (child_id, level_number, file_name, create_date, creativity_behavior_s3url) VALUES ("{child_id}","{level_num}","{level_name}.mp3","{now_asia_seoul}","{s3_mp3_url}") '''
+            insert_tuple = sql_executer(insert_ql1)
+
+        if base64_img is not None:
+            base64_bytes = base64_img.encode('utf-8')
+            byte_array = base64.b64decode(base64_bytes)
+            content_uploaddir= "creativity/image/"+user_id+"/"+child_id+"/"+level_name+".png"
+            with open('output_from_json.png', 'wb') as output_file:
+                output_file.write(byte_array)
+            with open('output_from_json.png', 'rb') as output_file:
+                s3.upload_fileobj(output_file, bucket_name, content_uploaddir)
+            s3_img_url = f'https://kr.object.ncloudstorage.com/{bucket_name}/creativity/image/{user_id}/{child_id}/{level_name}.png'
+            insert_ql2 = f''' INSERT INTO au_creative_behavior (child_id, level_number, file_name, create_date, creativity_behavior_s3url) VALUES ("{child_id}","{level_num}","{level_name}.png","{now_asia_seoul}","{s3_img_url}") '''
+            insert_tuple = sql_executer(insert_ql2)
+
+    except pymysql.err.OperationalError:
+        json_response = default_result(400,False,'DB table insert error ')
+        return Response(json_response, status = '401')
+    except:
+        json_response = default_result(400,False,'s3 upload problem')
+        return Response(json_response, status = '401')   
+
+    json_response = default_result(400,False,'content table select False')
+    return Response(json_response, status = '401')   
