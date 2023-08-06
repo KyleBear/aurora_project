@@ -75,5 +75,5 @@ urlpatterns = [
     path('api/content-detail-revise', content_detail_revise, name='content_detail_revise'),
 
     path('api/creativity-charsi-list', creativity_charsi_list, name='creativity_charsi_list'),    
-    path('api/content-detail-revise', creativity_file_save, name='creativity_file_save'),
+    path('api/creativity-file-save', creativity_file_save, name='creativity_file_save'),
 ]
