@@ -34,6 +34,9 @@ from .views import content_list
 from .views import content_detail_list
 from .views import content_detail_revise
 
+from .views import creativity_charsi_list
+from .views import creativity_file_save
+
 urlpatterns = [
     path('admin/', admin.site.urls),
 
@@ -70,4 +73,7 @@ urlpatterns = [
     path('api/content-list', content_list, name='content_list'),
     path('api/content-detail-list', content_detail_list, name='content_detail_list'),
     path('api/content-detail-revise', content_detail_revise, name='content_detail_revise'),
+
+    path('api/creativity-charsi-list', creativity_charsi_list, name='creativity_charsi_list'),    
+    path('api/content-detail-revise', creativity_file_save, name='creativity_file_save'),
 ]

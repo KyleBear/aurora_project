@@ -207,62 +207,74 @@ def login(request):
 
         user_typeql = f''' select user_type from au_user where user_id = "{user_id}" '''
         userql = sql_executer(user_typeql)
-        user_type = userql[0][0]
-        
-        if len(user)>0:
-            user_hashed_pwd = user[0][0]
-            hash_chk = hash_pwd_chk(user_pwd,user_hashed_pwd)
+        try:
+            user_type = userql[0][0]
+            
+            if len(user)>0:
+                user_hashed_pwd = user[0][0]
+                hash_chk = hash_pwd_chk(user_pwd,user_hashed_pwd)
 
-            SECRET_KEY = 'aurora_secret_key'
-            token = generate_token(user_id)
-            token = verify_token(token)
+                SECRET_KEY = 'aurora_secret_key'
+                token = generate_token(user_id)
+                token = verify_token(token)
 
-            if token == 'token expired':
-                response_data = {
-                'code':401,
-                'success': False,
-                'message': 'token expired'
-                }
-                json_response = response_data
-                return Response(json_response, status = 401)
-            elif token == False:
-                response_data = {
-                'code': 403,
-                'success': False,
-                'message': 'token False'
-                }
-                json_response = response_data
-                return Response(json_response, status = 403)
-            else:
-                if hash_chk == 'false':
+                if token == 'token expired':
                     response_data = {
+                    'code':401,
                     'success': False,
-                    'message': 'pwd False',
-                    'user_hashed_pwd': user_hashed_pwd 
+                    'message': 'token expired'
+                    }
+                    json_response = response_data
+                    return Response(json_response, status = 401)
+                elif token == False:
+                    response_data = {
+                    'code': 403,
+                    'success': False,
+                    'message': 'token False'
                     }
                     json_response = response_data
                     return Response(json_response, status = 403)
                 else:
-                    now_asia_seoul = cur_time_asia()
-                    response_data = {
-                        'code' : 200,
-                        'success': True,
-                        'message': 'login succeed',
-                        'data' : {'user_token': token,
-                        'user_type': user_type,
-                        'pwd_check': hash_chk}
+                    if hash_chk == 'false':
+                        response_data = {
+                        'code': 403,   
+                        'success': False,
+                        'message': 'pwd False'
+                        # ,# 'user_hashed_pwd': user_hashed_pwd 
                         }
-                    update_loginql = f''' UPDATE au_user set login_date = "{now_asia_seoul}" where user_id = "{user_id}" '''
-                    updateql = sql_executer(update_loginql)
-                    json_response = response_data
-                    return Response(json_response, status = status.HTTP_200_OK)
-        else:
+                        json_response = response_data
+                        return Response(json_response, status = 403)
+                    else:
+                        now_asia_seoul = cur_time_asia()
+                        response_data = {
+                            'code' : 200,
+                            'success': True,
+                            'message': 'login succeed',
+                            'data' : {'user_token': token,
+                            'user_type': user_type
+                            # 'pwd_check': hash_chk
+                            }
+
+                            }
+                        update_loginql = f''' UPDATE au_user set login_date = "{now_asia_seoul}" where user_id = "{user_id}" '''
+                        updateql = sql_executer(update_loginql)
+                        json_response = response_data
+                        return Response(json_response, status = status.HTTP_200_OK)
+            else:
+                return JsonResponse({
+                    'code' : 401,
+                    'success': False,
+                    'message': 'Invalid login credentials',
+                    'user_type' : user_type
+                    }, 
+                    status=401)
+        except:
             return JsonResponse({
+                'code' : 401,
                 'success': False,
-                'error': 'Invalid login credentials',
-                'user_type' : user_type
+                'message': 'Invalid login ID',
                 }, 
-                status=401)
+                status=401)            
 
 
 @csrf_exempt
@@ -1226,25 +1238,27 @@ def creativity_charsi_list(request):
     try :
         #child age 
         child_birth_ql = f''' SELECT left(birth_date,10)  from au_child where child_id = "{child_id}"  '''
-        birth_date = sql_executer(child_birth_ql)[0]
+        birth_date = sql_executer(child_birth_ql)[0][0]
+
         birth_date_time = datetime.strptime(birth_date, '%Y-%m-%d')
         target_age = now_asia_seoul.year - birth_date_time.year - ((now_asia_seoul.month, now_asia_seoul.day) < (birth_date_time.month, birth_date_time.day))
-        
-        charsili_ql = f''' select distinct level_id ,level_name from au_charsilevel where target_age = "{target_age}" order by "level_id" '''
+
+        # charsili_ql = f''' select distinct level_id ,level_name,level_number from au_charsilevel where target_age = "{target_age}" order by "level_id" asc '''
+        charsili_ql = f''' select distinct level_name,level_number from au_charsilevel where target_age = "{target_age}" order by "level_number" asc '''
         charsi_list = sql_executer(charsili_ql)
         char_lists = []
 
-        fin_charql = f''' select max(level_number) au_creative_behavior where child_id = "{child_id}" '''
-        fin_charsi = sql_executer(fin_charql)[0]
-
+        fin_charql = f''' select max(level_number) from au_creative_behavior where child_id = "{child_id}" '''
+        fin_charsirow = sql_executer(fin_charql)
+        fin_charsi = fin_charsirow[0][0]
 # child aging, target charsi change. 
 # finished charsi
         for record in charsi_list:
-            level_id,level_name = record
-
+            # level_id,level_name,level_number = record
+            level_name,level_number = record
             char_dict = { 
-                "level_id":level_id,
-                "level_name":level_name
+                "level_name":level_name,
+                "level_number":level_number
              }
             char_lists.append(char_dict)
 
