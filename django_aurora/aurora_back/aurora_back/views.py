@@ -1274,8 +1274,11 @@ def creativity_charsi_list(request):
         json_response = response_data
         return Response(json_response, status= status.HTTP_200_OK)
     
+    except pymysql.err.OperationalError:
+        json_response = default_result(400,False,'DB table select error ')
+        return Response(json_response, status = 400)
     except:
-        json_response = default_result(400,False,'charsi table select False')
+        json_response = default_result(400,False,'unknown error')
         return Response(json_response, status = '401')   
 
 
@@ -1312,6 +1315,8 @@ def creativity_file_save(request):
             s3_img_url = f'https://kr.object.ncloudstorage.com/{bucket_name}/creativity/image/{user_id}/{child_id}/{level_name}.png'
             insert_ql2 = f''' INSERT INTO au_creative_behavior (child_id, level_number, file_name, create_date, creativity_behavior_s3url) VALUES ("{child_id}","{level_num}","{level_name}.png","{now_asia_seoul}","{s3_img_url}") '''
             insert_tuple = sql_executer(insert_ql2)
+            json_response = default_result(200,True,'mp3 file inserted successfully')
+            return Response(json_response, status = 200)
             # pdb.set_trace()
         elif base64_img is None and base64_mp3 is not None:
 
@@ -1326,7 +1331,10 @@ def creativity_file_save(request):
             s3_mp3_url = f'https://kr.object.ncloudstorage.com/{bucket_name}/creativity/sound/{user_id}/{child_id}/{level_name}.mp3'
             insert_ql1 = f''' INSERT INTO au_creative_behavior (child_id, level_number, file_name, create_date, creativity_behavior_s3url) VALUES ("{child_id}","{level_num}","{level_name}.mp3","{now_asia_seoul}","{s3_mp3_url}") '''
             insert_tuple = sql_executer(insert_ql1)
-  
+
+            json_response = default_result(200,True,'img file inserted successfully')
+            return Response(json_response, status = 200)
+
         elif base64_mp3 is not None and base64_img is not None:
             #소리 
             base64_bytes = base64_mp3.encode('utf-8')
@@ -1351,16 +1359,26 @@ def creativity_file_save(request):
             s3_img_url = f'https://kr.object.ncloudstorage.com/{bucket_name}/creativity/image/{user_id}/{child_id}/{level_name}.png'
             insert_ql2 = f''' INSERT INTO au_creative_behavior (child_id, level_number, file_name, create_date, creativity_behavior_s3url) VALUES ("{child_id}","{level_num}","{level_name}.png","{now_asia_seoul}","{s3_img_url}") '''
             insert_tuple = sql_executer(insert_ql2)
-       
+
+            json_response = default_result(200,True,'mp3 file and img file inserted successfully')
+            return Response(json_response, status = 200)            
+
+
         json_response = default_result(200,True,'creativity behavior response successfully')
         return Response(json_response, status = 200)
 
     except pymysql.err.OperationalError:
         json_response = default_result(400,False,'DB table insert error ')
         return Response(json_response, status = 400)
-    except:
+    except pymysql.err.IntegrityError:
+        json_response = default_result(400,False,'DB table integrity error')
+        return Response(json_response, status = 400)        
+    except botocore.exceptions.BotoCoreError as e:
         json_response = default_result(400,False,'s3 upload problem')
+        return Response(json_response, status = 400)        
+    except:
+        json_response = default_result(400,False,'unknown problem')
         return Response(json_response, status = 400)   
 
     json_response = default_result(400,False,'content table select False')
-    return Response(json_response, status = 400)   
+    return Response(json_response, status = 400)
