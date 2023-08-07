@@ -1049,8 +1049,8 @@ def content_upload(request):
         with open('output_from_json.jpg', 'wb') as output_file:
             output_file.write(byte_array)
         with open('output_from_json.jpg', 'rb') as output_file:
-            s3.upload_fileobj(output_file, bucket_name, content_uploaddir)
-        # s3_url = f'https://kr.object.ncloudstorage.com/{bucket_name}/{content_title}'
+            # s3.upload_fileobj(output_file, bucket_name, content_uploaddir)
+            s3.upload_fileobj(output_file, bucket_name, content_uploaddir, ExtraArgs={'ACL': 'public-read'}) #public object 로 업로드.
         s3_url = f'https://kr.object.ncloudstorage.com/{bucket_name}/contents/video/{content_title}'
 
         if base64_thumbnail is not None:
@@ -1061,7 +1061,7 @@ def content_upload(request):
                 output_file.write(byte_array_thumb)
             with open('output_thumnail_json.png', 'rb') as output_file:
                 print(output_file)
-                s3.upload_fileobj(output_file, bucket_name, content_uploaddir_thumb)
+                s3.upload_fileobj(output_file, bucket_name, content_uploaddir_thumb, ExtraArgs={'ACL': 'public-read'})
 
             # s3_thumbnail_url = f'https://kr.object.ncloudstorage.com/{bucket_name}/{content_title}'
 
@@ -1310,6 +1310,7 @@ def creativity_file_save(request):
             with open('output_from_json.png', 'wb') as output_file:
                 output_file.write(byte_array)
             with open('output_from_json.png', 'rb') as output_file:
+                s3.upload_fileobj(output_file, bucket_name, content_uploaddir, ExtraArgs={'ACL': 'public-read'})
                 s3.upload_fileobj(output_file, bucket_name, content_uploaddir)
             s3_img_url = f'https://kr.object.ncloudstorage.com/{bucket_name}/creativity/image/{user_id}/{child_id}/{level_name}.png'
             insert_ql2 = f''' INSERT INTO au_creative_behavior (child_id, level_number, file_name, create_date, creativity_behavior_s3url) VALUES ("{child_id}","{level_num}","{level_name}.png","{now_asia_seoul}","{s3_img_url}") '''
@@ -1326,7 +1327,8 @@ def creativity_file_save(request):
             with open('output_from_json.wav', 'wb') as output_file:
                 output_file.write(byte_array)
             with open('output_from_json.wav', 'rb') as output_file:
-                s3.upload_fileobj(output_file, bucket_name, content_uploaddir)
+                # s3.upload_fileobj(output_file, bucket_name, content_uploaddir)
+                s3.upload_fileobj(output_file, bucket_name, content_uploaddir, ExtraArgs={'ACL': 'public-read'})
             s3_mp3_url = f'https://kr.object.ncloudstorage.com/{bucket_name}/creativity/sound/{user_id}/{child_id}/{level_name}.wav'
             insert_ql1 = f''' INSERT INTO au_creative_behavior (child_id, level_number, file_name, create_date, creativity_behavior_s3url) VALUES ("{child_id}","{level_num}","{level_name}.mp3","{now_asia_seoul}","{s3_mp3_url}") '''
             insert_tuple = sql_executer(insert_ql1)
@@ -1343,7 +1345,7 @@ def creativity_file_save(request):
             with open('output_from_json.wav', 'wb') as output_file:
                 output_file.write(byte_array)
             with open('output_from_json.wav', 'rb') as output_file:
-                s3.upload_fileobj(output_file, bucket_name, content_uploaddir)
+                s3.upload_fileobj(output_file, bucket_name, content_uploaddir, ExtraArgs={'ACL': 'public-read'}) #ExtraArgs={'ACL': 'public-read'}
             s3_mp3_url = f'https://kr.object.ncloudstorage.com/{bucket_name}/creativity/sound/{user_id}/{child_id}/{level_name}.wav'
             insert_ql1 = f''' INSERT INTO au_creative_behavior (child_id, level_number, file_name, create_date, creativity_behavior_s3url) VALUES ("{child_id}","{level_num}","{level_name}.wav","{now_asia_seoul}","{s3_mp3_url}") '''
             insert_tuple = sql_executer(insert_ql1)
@@ -1354,7 +1356,7 @@ def creativity_file_save(request):
             with open('output_from_json.png', 'wb') as output_file:
                 output_file.write(byte_array)
             with open('output_from_json.png', 'rb') as output_file:
-                s3.upload_fileobj(output_file, bucket_name, content_uploaddir)
+                s3.upload_fileobj(output_file, bucket_name, content_uploaddir, ExtraArgs={'ACL': 'public-read'})
             s3_img_url = f'https://kr.object.ncloudstorage.com/{bucket_name}/creativity/image/{user_id}/{child_id}/{level_name}.png'
             insert_ql2 = f''' INSERT INTO au_creative_behavior (child_id, level_number, file_name, create_date, creativity_behavior_s3url) VALUES ("{child_id}","{level_num}","{level_name}.png","{now_asia_seoul}","{s3_img_url}") '''
             insert_tuple = sql_executer(insert_ql2)
@@ -1381,3 +1383,5 @@ def creativity_file_save(request):
 
     json_response = default_result(400,False,'creative behavior insert False')
     return Response(json_response, status = 400)
+
+
