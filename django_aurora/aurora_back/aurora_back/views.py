@@ -1294,10 +1294,9 @@ def creativity_file_save(request):
     child_id = data.get("child_id")
     level_num = data.get("level_num")
     level_name = data.get("level_name")
-    # base64_mp3 = request.data.get('raw_sound_data')
-    # base64_img = request.data.get('raw_img_data')
-    base64_mp3 = data.get('raw_sound_data')
-    base64_img = data.get('raw_img_data')
+
+    base64_mp3 = data.get('raw_sound_data') # wav file
+    base64_img = data.get('raw_img_data') # png file
 # create s3 url 
     try:
         s3 = s3connect()
@@ -1315,7 +1314,7 @@ def creativity_file_save(request):
             s3_img_url = f'https://kr.object.ncloudstorage.com/{bucket_name}/creativity/image/{user_id}/{child_id}/{level_name}.png'
             insert_ql2 = f''' INSERT INTO au_creative_behavior (child_id, level_number, file_name, create_date, creativity_behavior_s3url) VALUES ("{child_id}","{level_num}","{level_name}.png","{now_asia_seoul}","{s3_img_url}") '''
             insert_tuple = sql_executer(insert_ql2)
-            json_response = default_result(200,True,'mp3 file inserted successfully')
+            json_response = default_result(200,True,'image(png) file inserted successfully')
             return Response(json_response, status = 200)
             # pdb.set_trace()
         elif base64_img is None and base64_mp3 is not None:
@@ -1323,16 +1322,16 @@ def creativity_file_save(request):
             base64_bytes2 = base64_mp3.encode('utf-8')
             byte_array = base64.b64decode(base64_bytes2)
 
-            content_uploaddir= "creativity/sound/"+user_id+"/"+child_id+"/"+level_name+".mp3"
-            with open('output_from_json.mp3', 'wb') as output_file:
+            content_uploaddir= "creativity/sound/"+user_id+"/"+child_id+"/"+level_name+".wav"
+            with open('output_from_json.wav', 'wb') as output_file:
                 output_file.write(byte_array)
-            with open('output_from_json.mp3', 'rb') as output_file:
+            with open('output_from_json.wav', 'rb') as output_file:
                 s3.upload_fileobj(output_file, bucket_name, content_uploaddir)
-            s3_mp3_url = f'https://kr.object.ncloudstorage.com/{bucket_name}/creativity/sound/{user_id}/{child_id}/{level_name}.mp3'
+            s3_mp3_url = f'https://kr.object.ncloudstorage.com/{bucket_name}/creativity/sound/{user_id}/{child_id}/{level_name}.wav'
             insert_ql1 = f''' INSERT INTO au_creative_behavior (child_id, level_number, file_name, create_date, creativity_behavior_s3url) VALUES ("{child_id}","{level_num}","{level_name}.mp3","{now_asia_seoul}","{s3_mp3_url}") '''
             insert_tuple = sql_executer(insert_ql1)
 
-            json_response = default_result(200,True,'img file inserted successfully')
+            json_response = default_result(200,True,'sound file(wav) inserted successfully')
             return Response(json_response, status = 200)
 
         elif base64_mp3 is not None and base64_img is not None:
@@ -1340,13 +1339,13 @@ def creativity_file_save(request):
             base64_bytes = base64_mp3.encode('utf-8')
             byte_array = base64.b64decode(base64_bytes)
 
-            content_uploaddir= "creativity/sound/"+user_id+"/"+child_id+"/"+level_name+".mp3"
-            with open('output_from_json.mp3', 'wb') as output_file:
+            content_uploaddir= "creativity/sound/"+user_id+"/"+child_id+"/"+level_name+".wav"
+            with open('output_from_json.wav', 'wb') as output_file:
                 output_file.write(byte_array)
-            with open('output_from_json.mp3', 'rb') as output_file:
+            with open('output_from_json.wav', 'rb') as output_file:
                 s3.upload_fileobj(output_file, bucket_name, content_uploaddir)
-            s3_mp3_url = f'https://kr.object.ncloudstorage.com/{bucket_name}/creativity/sound/{user_id}/{child_id}/{level_name}.mp3'
-            insert_ql1 = f''' INSERT INTO au_creative_behavior (child_id, level_number, file_name, create_date, creativity_behavior_s3url) VALUES ("{child_id}","{level_num}","{level_name}.mp3","{now_asia_seoul}","{s3_mp3_url}") '''
+            s3_mp3_url = f'https://kr.object.ncloudstorage.com/{bucket_name}/creativity/sound/{user_id}/{child_id}/{level_name}.wav'
+            insert_ql1 = f''' INSERT INTO au_creative_behavior (child_id, level_number, file_name, create_date, creativity_behavior_s3url) VALUES ("{child_id}","{level_num}","{level_name}.wav","{now_asia_seoul}","{s3_mp3_url}") '''
             insert_tuple = sql_executer(insert_ql1)
             # 이미지
             base64_bytes2 = base64_img.encode('utf-8')
@@ -1360,7 +1359,7 @@ def creativity_file_save(request):
             insert_ql2 = f''' INSERT INTO au_creative_behavior (child_id, level_number, file_name, create_date, creativity_behavior_s3url) VALUES ("{child_id}","{level_num}","{level_name}.png","{now_asia_seoul}","{s3_img_url}") '''
             insert_tuple = sql_executer(insert_ql2)
 
-            json_response = default_result(200,True,'mp3 file and img file inserted successfully')
+            json_response = default_result(200,True,'sound(wav) file and image(png) file inserted successfully')
             return Response(json_response, status = 200)            
 
 
@@ -1380,5 +1379,5 @@ def creativity_file_save(request):
         json_response = default_result(400,False,'unknown problem')
         return Response(json_response, status = 400)   
 
-    json_response = default_result(400,False,'content table select False')
+    json_response = default_result(400,False,'creative behavior insert False')
     return Response(json_response, status = 400)
