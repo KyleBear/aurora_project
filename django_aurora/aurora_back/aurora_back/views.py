@@ -481,14 +481,23 @@ def admin_list(request):
     user_search = data.get("user_search")
     user_type = data.get("user_type")
 
+    admin_lists = []
     admin_listql = f''' select user_id, user_name, create_date, login_date from au_user where (user_id like "%{user_search}%" or user_name like "%{user_search}%") and user_type = "{user_type}" '''
     admin_list = sql_executer(admin_listql)
-
+    for record in admin_list:
+        user_id, user_name, create_date,login_date = record
+        admin_dict = {
+            "user_id": user_id,
+            "user_name": user_name,
+            "create_date": create_date,
+            "login_date":login_date
+        }
+        admin_lists.append(admin_dict)
     response_data = {
                     "code": 200,
                     "success": True,
                     "message": "success",
-                    "data" : {"adminlist": admin_list}
+                    "data" : {"adminlist": admin_lists}
                     }
     json_response = response_data
     return Response(json_response, status= status.HTTP_200_OK)
@@ -699,14 +708,34 @@ def evaluator_detail_search(request):
     data = json.loads(body)
     user_id = data.get("user_id")
     try:
-        admin_listql = f''' select user_id, user_name, user_email, user_phone, create_date, user_approval from au_user where user_id = "{user_id}" '''
-        admin_list = sql_executer(admin_listql)
-        user_name = admin_list[0][1]
-        user_email = admin_list[0][2]
-        user_phone = admin_list[0][3]
-        create_date = admin_list[0][4]
-        user_approval = admin_list[0][5]
+        eval_listql = f''' select user_id, user_name, user_email, user_phone, create_date, user_approval from au_user where user_id = "{user_id}" '''
+        eval_list = sql_executer(eval_listql)
+        user_name = eval_list[0][1]
+        user_email = eval_list[0][2]
+        user_phone = eval_list[0][3]
+        create_date = eval_list[0][4]
+        user_approval = eval_list[0][5]
 
+# 위에선 단순 user_id 엿던게 여기서는 칼럼이 evaluator_id 로 변환됩. 
+# 사유 - 기본유저인 parent user 를 평가하는 특수 evaluator 이기 때문. 
+
+        child_rate_lists = []
+        # child_rate_dict = {}
+        child_rate_listql = f''' SELECT user_id,child_name, acr.target_age, ac.level_number, education_date,rate_dttm from au_creativity_rate acr left join au_charsilevel ac on  ac.level_id = acr.level_id where evaluator_id = "{user_id}" '''
+        child_rate_list = sql_executer(child_rate_listql)
+        for record in child_rate_list:
+            user_id, child_name, target_age, level_number, education_date,rate_dttm = record
+            child_rate_dict = {
+                "user_id": user_id,
+                "child_name": child_name,
+                "target_age": target_age,
+                "level_number": level_number,
+                "education_date": education_date,
+                "rate_dttm": rate_dttm,
+            }
+            child_rate_lists.append(child_rate_dict) # 딕셔너리를 리스트에 추가
+# 1. 평가자 상세정보 
+# 2. 평가자 평가내역 
         response_data = {
                     "code" : 200,
                     "success": True,
@@ -714,16 +743,22 @@ def evaluator_detail_search(request):
                     "user_email": user_email,
                     "user_phone": user_phone,
                     "create_date": create_date,
-                    "user_approval": user_approval
+                    "user_approval": user_approval,
+                    "child_rate_lists" : child_rate_lists
                     }
 
                     }
+
+
+
+# 평가를 하는 화면 ? 28페이지 
+
         json_response = response_data
         return Response(json_response, status= status.HTTP_200_OK)
     except:
         response_data = default_result(401,False, 'evaluator search fail')
         json_response = response_data
-        return Response(json_response, status = '401')
+        return Response(json_response, status = 401)
 
 
 @csrf_exempt
@@ -733,24 +768,30 @@ def evaluator_detail_revise(request):
     now_asia_seoul = cur_time_asia()
     body = request.body.decode("utf-8")
     data = json.loads(body)
+
+# 받아야될 값 
     user_id = data.get("user_id")
-    user_name = data.get("user_name")
+# 수정가능 사항 
     user_phone = data.get("user_phone")
     user_email = data.get("user_email")
     user_approval = data.get("user_approval")
 
     try:
-        update_ql = f''' UPDATE au_user set user_name = "{user_name}", user_phone = "{user_phone}", user_email = "{user_email}", user_approval = "{user_approval}" where user_id = "{user_id}" '''
+        # update_ql = f''' UPDATE au_user set user_name = "{user_name}", user_phone = "{user_phone}", user_email = "{user_email}", user_approval = "{user_approval}" where user_id = "{user_id}" '''
+        update_ql = f''' UPDATE au_user set user_phone = "{user_phone}", user_email = "{user_email}", user_approval = "{user_approval}" where user_id = "{user_id}" '''
         update_ql_com = sql_executer(update_ql)
  
         response_data = default_result(200, True, 'user successfully updated')
         json_response = response_data
         return Response(json_response, status= status.HTTP_200_OK)
     except:
-
         response_data = default_result(401, False, 'user update fail')
         json_response = response_data
         return Response(json_response, status = '401')
+
+# 비밀번호 리셋 
+# 평가자 삭제- 
+
 
 @csrf_exempt
 @token_required
