@@ -43,6 +43,8 @@ from functools import wraps
 # 
 from botocore.client import Config
 
+#mas added
+
 def s3connect():
     service_name = 's3'
     endpoint_url = 'https://kr.object.ncloudstorage.com'
@@ -406,13 +408,13 @@ def password_reset(request):
         updateql = sql_executer(update_resetql)
 
 
-        json_response = default_result('200','success','password successfully reset')
+        json_response = default_result(200,True,'password successfully reset')
         return Response(json_response, status = status.HTTP_200_OK)
 
     else:
 
-        json_response = default_result('400',False,'password reset False')
-        return Response(json_response, status = status.HTTP_200_OK)
+        json_response = default_result(400,False,'password reset False')
+        return Response(json_response, status = 400)
 
 @csrf_exempt
 @token_required
@@ -467,7 +469,7 @@ def delete_user(request):
         return Response(json_response, status = status.HTTP_200_OK)
     else:
         json_response = default_result(401,False, 'matching user does not exist ')
-        return Response(json_response, status = '401')
+        return Response(json_response, status = 401)
 
 
 @csrf_exempt
@@ -523,9 +525,9 @@ def admin_detail_search(request):
     body = request.body.decode("utf-8")
     data = json.loads(body)
     user_id = data.get("user_id")
-    user_type = data.get("user_type")
+    # user_type = data.get("user_type")
     try:
-        admin_listql = f''' select user_id, user_name, user_email, user_phone from au_user where user_id = "{user_id}"  and user_type = "{user_type}" '''
+        admin_listql = f''' select user_id, user_name, user_email, user_phone from au_user where user_id = "{user_id}"  and user_type = "admin" '''
         admin_list = sql_executer(admin_listql)
         user_name = admin_list[0][1]
         user_email = admin_list[0][2]
@@ -554,7 +556,6 @@ def admin_detail_revise(request):
     body = request.body.decode("utf-8")
     data = json.loads(body)
     user_id = data.get("user_id")
-    user_type = data.get("user_type")
     user_name = data.get("user_name")
     user_phone = data.get("user_phone")
     user_email = data.get("user_email")
@@ -582,11 +583,12 @@ def parent_list(request):
     body = request.body.decode("utf-8")
     data = json.loads(body)
     user_id = data.get("user_id")
-    user_type = data.get("user_type")
+    # user_type = data.get("user_type")
 
     parent_dicts = []
     try:
-        parent_listql = f''' select user_id, user_name, create_date, login_date from au_user where (user_id like "%{user_id}%") and user_type = "{user_type}" '''
+        # parent_listql = f''' select user_id, user_name, create_date, login_date from au_user where (user_id like "%{user_id}%") and user_type = "{user_type}" '''
+        parent_listql = f''' select user_id, user_name, create_date, login_date from au_user where (user_id like "%{user_id}%") '''
         parent_qlcom = sql_executer(parent_listql)
 
         for record in parent_qlcom:
@@ -614,7 +616,7 @@ def parent_list(request):
                     }
         
         json_response = response_data
-        return Response(json_response, status = '401')
+        return Response(json_response, status = 401)
 
     json_response = response_data
     return Response(json_response, status= status.HTTP_200_OK)
@@ -626,9 +628,8 @@ def parent_detail_search(request):
     body = request.body.decode("utf-8")
     data = json.loads(body)
     user_id = data.get("user_id")
-    user_type = data.get("user_type")
 
-    parent_listql = f''' select user_id, user_name, create_date, login_date from au_user where (user_id like "%{user_id}%") and user_type = "{user_type}" '''
+    parent_listql = f''' select user_id, user_name, create_date, login_date from au_user where user_id = "{user_id}" and user_type = "parent" '''
     parent_list = sql_executer(parent_listql)
     try:
         user_name = parent_list[0][1]
@@ -660,15 +661,34 @@ def evaluator_list(request):
     data = json.loads(body)
     user_search = data.get("user_search")
     user_approval = data.get("user_approval")     # user_approval ('Y','N')
-    eval_listql = f''' select user_id, user_name, create_date, login_date, user_approval from au_user where (user_id like "%{user_search}%" or user_name like "%{user_search}%") and user_approval = "{user_approval}" '''
-    eval_list = sql_executer(eval_listql)
-    response_data = {
-                    "success": True,
-                    "message": "evaluator list successfully get",
-                    "data": {"eval_list": eval_list}
-                    }
-    json_response = response_data
-    return Response(json_response, status= status.HTTP_200_OK)
+    eval_lists = []
+    try:
+        eval_listql = f''' select user_id, user_name, create_date, login_date, user_approval from au_user where (user_id like "%{user_search}%" or user_name like "%{user_search}%") and user_approval = "{user_approval}" '''
+        eval_list = sql_executer(eval_listql)
+
+        for record in eval_list:
+            user_id, user_name, create_date, login_date, user_approval = record
+            eval_dict = {
+                "user_id": user_id,
+                "user_name": user_name,
+                "create_date": create_date,
+                "login_date": login_date,
+                "user_approval": user_approval
+            }
+            eval_lists.append(eval_dict) # 딕셔너리를 리스트에 추가
+        response_data = {"code": 200,
+                "success": True,
+                "message": "evaluator list successfully get",
+                "data": {"eval_list": eval_lists}
+                }
+        json_response = response_data
+        return Response(json_response, status= status.HTTP_200_OK)
+    except:
+        json_response = default_result(400,False,'evaluator select error')
+        return Response(json_response, status= 400)
+
+    json_response = default_result(400,False,'evaluator select error occured')
+    return Response(json_response, status= 400)
 
 @csrf_exempt
 @token_required
@@ -679,23 +699,29 @@ def evaluator_detail_search(request):
     data = json.loads(body)
     user_id = data.get("user_id")
     try:
-        admin_listql = f''' select user_id, user_name, user_email, user_phone from au_user where user_id = "{user_id}" '''
+        admin_listql = f''' select user_id, user_name, user_email, user_phone, create_date, user_approval from au_user where user_id = "{user_id}" '''
         admin_list = sql_executer(admin_listql)
         user_name = admin_list[0][1]
         user_email = admin_list[0][2]
         user_phone = admin_list[0][3]
+        create_date = admin_list[0][4]
+        user_approval = admin_list[0][5]
 
         response_data = {
                     "code" : 200,
                     "success": True,
                     "data" : {"user_name": user_name,
                     "user_email": user_email,
-                    "user_phone": user_phone}
+                    "user_phone": user_phone,
+                    "create_date": create_date,
+                    "user_approval": user_approval
+                    }
+
                     }
         json_response = response_data
         return Response(json_response, status= status.HTTP_200_OK)
     except:
-        response_data = default_result(False, 'admin search fail')
+        response_data = default_result(401,False, 'evaluator search fail')
         json_response = response_data
         return Response(json_response, status = '401')
 
@@ -767,7 +793,7 @@ def child_list(request):
                     }
         json_response = response_data
 
-        return Response(json_response, status = '401')
+        return Response(json_response, status = 401)
 
 @csrf_exempt
 @token_required
@@ -795,10 +821,10 @@ def child_create(request):
 
             response_data = default_result(401, False, 'child create fail')
             json_response = response_data
-            return Response(json_response, status = '401')
+            return Response(json_response, status = 401)
     else:
         response_data = default_result(401, False, 'invalid date format')        
-        return Response(json_response, status = '401')
+        return Response(json_response, status = 401)
     
 @csrf_exempt
 @token_required
@@ -832,7 +858,7 @@ def child_detail_search(request):
                     "message" : "child unsuccessfully get"
                     }
         json_response = response_data
-        return Response(json_response, status = '401')
+        return Response(json_response, status = 401)
 
 @csrf_exempt
 @token_required
@@ -856,7 +882,7 @@ def child_detail_revise(request):
     except:
         response_data = default_result(401, False, 'user update fail')
         json_response = response_data
-        return Response(json_response, status = '401')
+        return Response(json_response, status = 401)
     
 
 
@@ -916,15 +942,18 @@ def delete_asset(request):
             return Response(json_response, status = status.HTTP_200_OK)
         except:
             json_response = default_result(401,False, 'delete asset error ')
-            return Response(json_response, status = '401')
+            return Response(json_response, status = 401)
     else:
         json_response = default_result(401,False, 'matching user does not exist ')
-        return Response(json_response, status = '401')
+        return Response(json_response, status = 401)
 
 @csrf_exempt
 @token_required
 @api_view(["POST"])
 def asset_upload(request):
+
+# base 64 encoding 확인필요. 
+
     now_asia_seoul = cur_time_asia()
     endpoint_url = 'https://kr.object.ncloudstorage.com'
 
@@ -1011,12 +1040,48 @@ def asset_revise(request):
     except:
         response_data = default_result(401, False, 'user update fail')
         json_response = response_data
-        return Response(json_response, status = '401')
+        return Response(json_response, status = 401)
 
 #  앱 
 
 
 #  지도안 
+
+# 1일 체크 한다고 치고, 
+
+
+# COU.4.1 .1
+# 창의력 평가 결과 목록 조회
+@csrf_exempt
+@token_required
+@api_view(["POST"])
+def creativity_behavior_list(request):
+    now_asia_seoul = cur_time_asia()
+    body = request.body.decode("utf-8")
+    data = json.loads(body)
+
+    asset_id = data.get("asset_id")
+    asset_id = data.get("asset_id")
+
+
+    response_data = default_result(401, False, 'user update fail')
+    json_response = response_data
+    return Response(json_response, status = '401')
+
+# 창의력 평가 하기
+@csrf_exempt
+@token_required
+@api_view(["POST"])
+def creativity_behavior_valuate(request):
+
+    response_data = default_result(401, False, 'user update fail')
+    json_response = response_data
+    return Response(json_response, status = '401')
+
+
+# 아이들의 창의력 활동 조회 
+
+
 
 
 # 콘텐츠 임시 변경
