@@ -108,7 +108,8 @@ def validate_date_format(date_string):
 def generate_token(user_id):
     # 토큰의 만료 시간 설정
     now_asia_seoul = cur_time_asia()
-    expiration_time = now_asia_seoul + timedelta(hours=12)
+    # expiration_time = now_asia_seoul + timedelta(hours=12)
+    expiration_time = now_asia_seoul + timedelta(hours=24)
     # 토큰 페이로드(payload) 설정
     payload = {
         'user_id': user_id,
@@ -953,7 +954,7 @@ def asset_list(request):
                     "data" : {"asset_list": asset_list}
                     }
 
-    response_data = default_result(200, True, 'user successfully updated')
+    # response_data = default_result(200, True, 'user successfully updated')
     json_response = response_data
     return Response(json_response, status= status.HTTP_200_OK)
 
@@ -981,12 +982,61 @@ def delete_asset(request):
 
             json_response = default_result(200,True,'asset successfully deleted')
             return Response(json_response, status = status.HTTP_200_OK)
+
         except:
             json_response = default_result(401,False, 'delete asset error ')
             return Response(json_response, status = 401)
     else:
         json_response = default_result(401,False, 'matching user does not exist ')
         return Response(json_response, status = 401)
+
+
+# @csrf_exempt
+# @token_required
+# @api_view(["POST"])
+# def asset_upload(request):
+#     now_asia_seoul = cur_time_asia()
+#     body = request.body.decode("utf-8")
+#     data = json.loads(body)
+
+#     file_size_mb = data.get("file_size")
+#     file_name = data.get("file_name")
+#     asset_desc = data.get("asset_desc")
+#     base64_asset = data.get('raw_asset_data') # wav file
+
+#     base64_bytes = base64_asset.encode('utf-8')
+#     byte_array = base64.b64decode(base64_bytes)
+
+#     content_uploaddir= "application_file/asset/"+file_name+".zip"
+
+#     try:
+#         s3 = s3connect()
+#         bucket_name = 'aurora'
+#         with open('output_from_asset.zip', 'wb') as output_file:
+#             output_file.write(byte_array)
+#         with open('output_from_aset.zip', 'rb') as output_file:
+#             s3.upload_fileobj(output_file, bucket_name, content_uploaddir, ExtraArgs={'ACL': 'public-read'})
+#             current_time = now_asia_seoul.strftime("%Y%m%d%H%M%S")  # 현재 시간을 문자열로 변환                    
+#             random_alphabet = ''.join(random.choice(string.ascii_letters) for _ in range(5))  # 랜덤 알파벳 5개 생성
+#             asset_id = 'A' + current_time + random_alphabet
+#             s3_url = f''' https://kr.object.ncloudstorage.com/"{bucket_name}"/"{content_uploaddir}" '''
+
+#             try:
+#                 asset_insert = f''' insert into au_asset (asset_id, asset_name,createdttm, asset_desc, asset_volume, asset_apply, asset_s3_url) VALUES ("{asset_id}", "{file_name}" ,"{now_asia_seoul}", "{asset_desc}", "{file_size_mb}","N", "{s3_url}" ) '''
+#                 asset_insert_ql = sql_executer(asset_insert)
+#                 json_response = default_result(200,True,'asset successfully insertted')
+#                 return Response(json_response, status = status.HTTP_200_OK)
+#             except:
+#                 json_response = default_result(400,False,'asset insertted False')
+#                 return Response(json_response, status = 400)
+
+#     except:
+#         json_response = default_result(401,False, 'asset upload False')
+#         return Response(json_response, status = 401)    
+
+#     json_response = default_result(401,False, 'asset upload False')
+#     return Response(json_response, status = 401)    
+
 
 @csrf_exempt
 @token_required
@@ -1002,7 +1052,6 @@ def asset_upload(request):
     secret_key = '0A1DF6FCAA172400D15C650C0E8F1892803C6F71'
     service_name = 's3'
 
-    # s3 = boto3.client(service_name, endpoint_url=endpoint_url, aws_access_key_id=access_key,aws_secret_access_key=secret_key)
     s3 = s3connect()
     bucket_name = 'aurora'
 
@@ -1012,26 +1061,26 @@ def asset_upload(request):
             bucket_name = 'aurora'
             file_size = file.size
             file_size_mb = file_size / (1024 * 1024)
-            file_name_in_s3 = 'application_file/asset/' + file.name
+            # file_name_in_s3 = 'application_file/asset/' + file.name
+            s3_dir = 'application_file/asset/' + file.name
             try:
-                s3.upload_fileobj(file, bucket_name, file_name_in_s3)
-
+                # s3.upload_fileobj(file, bucket_name, file_name_in_s3, ExtraArgs={'ACL': 'public-read'})
+                s3.upload_fileobj(file, bucket_name, s3_dir, ExtraArgs={'ACL': 'public-read'})
             # 업로드, 
                 current_time = now_asia_seoul.strftime("%Y%m%d%H%M%S")  # 현재 시간을 문자열로 변환                    
                 random_alphabet = ''.join(random.choice(string.ascii_letters) for _ in range(5))  # 랜덤 알파벳 5개 생성
                 asset_id = 'A' + current_time + random_alphabet
-                s3_url = f''' https://kr.object.ncloudstorage.com/"{bucket_name}"/"{file_name_in_s3}" '''
-
+                # s3_url = f''' https://kr.object.ncloudstorage.com/"{bucket_name}"/"{file_name_in_s3}" '''
+                s3_url = f'https://kr.object.ncloudstorage.com/{bucket_name}/{s3_dir}'
             # DB 인서트
-                json_data = request.POST.get('json_data', '{}')
-                data = json.loads(json_data)
-                asset_desc = data.get("asset_desc")
-                # 
+                asset_desc = request.POST.get('asset_desc')
                 try:
                     asset_insert = f''' insert into au_asset (asset_id, asset_name,createdttm, asset_desc, asset_volume, asset_apply, asset_s3_url) VALUES ("{asset_id}", "{file.name}" ,"{now_asia_seoul}", "{asset_desc}", "{file_size_mb}","N", "{s3_url}" ) '''
+                    # pdb.set_trace()
                     asset_insert_ql = sql_executer(asset_insert)
                     json_response = default_result(200,True,'asset successfully insertted')
                     return Response(json_response, status = status.HTTP_200_OK)
+
                 except:
                     json_response = default_result(400,False,'asset insertted False')
                     return Response(json_response, status = '401')
@@ -1087,6 +1136,101 @@ def asset_revise(request):
 
 
 #  지도안 
+@csrf_exempt
+@token_required
+@api_view(["POST"])
+def lesson_list(request):
+    # asset_list = []
+    # asset_ql = f''' select asset_id, createdttm, asset_desc, asset_volume,asset_apply from au_asset '''
+    # asset_tuple = sql_executer(asset_ql)
+
+    lesson_list = []
+    lesson_ql = f''' select lesson_id, start_age, end_age, level, createdttm, updatedttm, lesson_s3_url from au_lesson '''
+    lesson_tuple = sql_executer(lesson_ql)
+    for record in lesson_tuple:
+        lesson_id, start_age, level, createdttm, updatedttm, lesson_s3_url = record
+        lesson_dict = {"lesson_id": lesson_id,
+                        "start_age": start_age,
+                        "end_age": end_age,
+                        "level": level,
+                        "lesson_s3_url": lesson_s3_url}        
+    # 지도안 목록 # 지도안 다운로드 - s3 url 
+    response_data = {
+                    "code": 200,
+                    "success": True,
+                    "message": "success",
+                    "data" : {"lesson_list": lesson_list}
+                    }
+
+    # response_data = default_result(200, True, 'user successfully updated')
+    json_response = response_data
+    return Response(json_response, status= status.HTTP_200_OK)
+
+def lesson_upload(request):
+    # 지도안 업로드  
+    now_asia_seoul = cur_time_asia()
+    s3 = s3connect()
+
+    if 'zipfile' in request.FILES:
+        file = request.FILES['zipfile']
+        if file.name.endswith('.zip'):
+            bucket_name = 'aurora'
+
+            file_size = file.size
+            file_size_mb = file_size / (1024 * 1024)
+
+            # s3_dir = 'application_file/asset/' + file.name
+            s3_dir = 'application_file/lesson/' + file.name
+            try:
+                s3.upload_fileobj(file, bucket_name, s3_dir, ExtraArgs={'ACL': 'public-read'})
+            # 업로드, 
+                current_time = now_asia_seoul.strftime("%Y%m%d%H%M%S")  # 현재 시간을 문자열로 변환
+                random_alphabet = ''.join(random.choice(string.ascii_letters) for _ in range(5))  # 랜덤 알파벳 5개 생성
+                # asset_id = 'A' + current_time + random_alphabet
+                lesson_id = 'A' + current_time + random_alphabet
+                # s3_url = f''' https://kr.object.ncloudstorage.com/"{bucket_name}"/"{file_name_in_s3}" '''
+                s3_url = f'https://kr.object.ncloudstorage.com/{bucket_name}/{s3_dir}'
+            # DB 인서트
+                # asset_desc = request.POST.get('asset_desc')
+                start_age = request.POST.get('start_age')
+                end_age = request.POST.get('end_age')
+                level = request.POST.get('level')
+
+                try:
+                    lesson_insert = f''' insert into au_lesson (lesson_id, lesson_name, start_age, end_age, level, create_dttm, update_dttm) VALUES ("{lesson_id}", "{file.name}", "{start_age}", "{end_age}","{level}" ,"{now_asia_seoul}", "{now_asia_seoul}", ) '''
+                    lesson_insert_ql = sql_executer(lesson_insert)
+                    json_response = default_result(200,True,'asset successfully insertted')
+                    return Response(json_response, status = status.HTTP_200_OK)
+
+                except:
+                    json_response = default_result(400,False,'asset insertted False')
+                    return Response(json_response, status = '401')
+# rebuild botocore error message
+            except botocore.exceptions.BotoCoreError as e:
+                json_response = default_result(400, False, 'S3 insert failed: {}'.format(str(e)))
+                return Response(json_response, status='401')
+
+            except botocore.exceptions.ClientError as e:
+                error_code = e.response['Error']['Code']
+                error_message = e.response['Error']['Message']
+                json_response = default_result(400, False, 'S3 insert failed: {} - {}'.format(error_code, error_message))
+                return Response(json_response, status='401')
+
+            except Exception as e:
+                json_response = default_result(400, False, 'S3 insert failed: {}'.format(str(e)))
+                return Response(json_response, status='401')
+            except:
+                json_response = default_result(400,False,'asset s3 insert False')
+                return Response(json_response, status = '401')            
+    else:
+        json_response = default_result(400,False,'file is not zip file')
+        return Response(json_response, status = '401')
+
+
+    response_data = default_result(401, False, 'user update fail')
+    json_response = response_data
+    return Response(json_response, status = 401)
+
 
 # 1일 체크 한다고 치고, 
 
@@ -1100,12 +1244,113 @@ def creativity_behavior_list(request):
     now_asia_seoul = cur_time_asia()
     body = request.body.decode("utf-8")
     data = json.loads(body)
+    user_search = data.get("user_search") #자녀 이름, 학부모 아이디,
+    user_approval = data.get("user_approval")
+    start_age = data.get("start_age")
+    end_age = data.get("end_age")
+    level = data.get("level") #차시
+    # 평가자 id , 평가상태 
 
-    asset_id = data.get("asset_id")
-    asset_id = data.get("asset_id")
+    creativity_lists = []
+    # 대상연령 에 따라 분기를 칩니다. 
+    if start_age == "3":
+        try:
+# 쿼리수정 
+            eval_listql = f''' SELECT user_id, evaluator_id, child_name, ar.target_age, ac.level_number, education_date, rate_status FROM aurora_db.au_creativity_rate ar left join au_charsilevel ac on ac.level_id = ar.level_id where (user_id like "%{user_search}%" or user_name like "%{user_search}%") and user_approval = "{user_approval}" and ac.level_number = "{level}" and target_age = "{start_age}" '''
+            pdb.set_trace()
+            eval_list = sql_executer(eval_listql)
 
+            for record in eval_list:
+                user_id, evaluator_id, child_name, target_age, level_id, education_date,rate_dttm, rate_status = record
+                eval_dict = {
+                    "user_id": user_id,
+                    "evaluator_id": evaluator_id,
+                    "chlid_name": child_name,
+                    "target_age": target_age,
+                    # "level_id": level_id,
+                    "level_number": level_number,
+                    "education_date": education_date,
+                    "rate_status": rate_status
+                }
+                eval_lists.append(eval_dict) # 딕셔너리를 리스트에 추가
 
-    response_data = default_result(401, False, 'user update fail')
+            response_data = {"code": 200,
+                    "success": True,
+                    "message": "evaluator list successfully get",
+                    "data": {"eval_list": eval_lists}
+                    }
+
+            json_response = response_data
+            return Response(json_response, status= status.HTTP_200_OK)
+        except:
+            json_response = default_result(400,False,'evaluator select error')
+            return Response(json_response, status= 400)
+    elif start_age == 4 and end_age == 5:
+        try:
+            eval_listql = f''' SELECT user_id, evaluator_id, child_name, 
+                                ar.target_age, ac.level_number, education_date, rate_status 
+                                FROM aurora_db.au_creativity_rate ar 
+                                left join au_charsilevel ac on ac.level_id = ar.level_id 
+                                where (user_id like "%{user_search}%" or user_name like "%{user_search}%") and user_approval = "{user_approval}" and ac.level_number = "{level}" and target_age => "{start_age}" and target_age <= "{end_age}" '''
+            eval_list = sql_executer(eval_listql)
+            for record in eval_list:
+                user_id, evaluator_id, child_name, target_age, level_id, education_date,rate_dttm, rate_status = record
+                eval_dict = {
+                    "user_id": user_id,
+                    "evaluator_id": evaluator_id,
+                    "chlid_name": child_name,
+                    "target_age": target_age,
+                    # "level_id": level_id,
+                    "level_number": level_number,
+                    "education_date": education_date,
+                    "rate_status": rate_status
+                }
+                eval_lists.append(eval_dict) # 딕셔너리를 리스트에 추가
+            response_data = {"code": 200,
+                    "success": True,
+                    "message": "evaluator list successfully get",
+                    "data": {"eval_list": eval_lists}
+                    }
+            json_response = response_data
+            return Response(json_response, status= status.HTTP_200_OK)
+        except:
+            json_response = default_result(400,False,'evaluator select error')
+            return Response(json_response, status= 400)
+
+    elif start_age == 6 and end_age == 7:
+        try:
+            eval_listql = f''' SELECT user_id, evaluator_id, child_name, 
+                                ar.target_age, ac.level_number, education_date, rate_status 
+                                FROM aurora_db.au_creativity_rate ar 
+                                left join au_charsilevel ac on ac.level_id = ar.level_id 
+                                where (user_id like "%{user_search}%" or user_name like "%{user_search}%") and user_approval = "{user_approval}" and ac.level_number = "{level}" and target_age => "{start_age}" and target_age <= "{end_age}" '''
+            eval_list = sql_executer(eval_listql)
+            for record in eval_list:
+                user_id, evaluator_id, child_name, target_age, level_id, education_date,rate_dttm, rate_status = record
+                eval_dict = {
+                    "user_id": user_id,
+                    "evaluator_id": evaluator_id,
+                    "chlid_name": child_name,
+                    "target_age": target_age,
+                    # "level_id": level_id,
+                    "level_number": level_number,
+                    "education_date": education_date,
+                    "rate_status": rate_status
+                }
+                eval_lists.append(eval_dict) # 딕셔너리를 리스트에 추가
+            response_data = {"code": 200,
+                    "success": True,
+                    "message": "evaluator list successfully get",
+                    "data": {"eval_list": eval_lists}
+                    }
+            json_response = response_data
+            return Response(json_response, status= status.HTTP_200_OK)
+        except:
+            json_response = default_result(400,False,'evaluator select error')
+            return Response(json_response, status= 400)
+    # 창의력 활동 조회 , ++ 대상연령, 평가상태를 더합니다.
+    # 모든 창의력 활동을 조회합니다. #평가 상태도 조회 
+    response_data = default_result(401, False, 'creativity behavior list failed')
     json_response = response_data
     return Response(json_response, status = '401')
 
@@ -1115,17 +1360,15 @@ def creativity_behavior_list(request):
 @api_view(["POST"])
 def creativity_behavior_valuate(request):
 
+
+# au user, 유저테이블, 
+# 창의력 교육정보 테이블, 
+# 지도안 테이블 
+
+
     response_data = default_result(401, False, 'user update fail')
     json_response = response_data
     return Response(json_response, status = '401')
-
-
-# 아이들의 창의력 활동 조회 
-
-
-
-
-# 콘텐츠 임시 변경
 
 import base64
 
@@ -1417,7 +1660,6 @@ def creativity_file_save(request):
                 output_file.write(byte_array)
             with open('output_from_json.png', 'rb') as output_file:
                 s3.upload_fileobj(output_file, bucket_name, content_uploaddir, ExtraArgs={'ACL': 'public-read'})
-                s3.upload_fileobj(output_file, bucket_name, content_uploaddir)
             s3_img_url = f'https://kr.object.ncloudstorage.com/{bucket_name}/creativity/image/{user_id}/{child_id}/{level_name}.png'
             insert_ql2 = f''' INSERT INTO au_creative_behavior (child_id, level_number, file_name, create_date, creativity_behavior_s3url) VALUES ("{child_id}","{level_num}","{level_name}.png","{now_asia_seoul}","{s3_img_url}") '''
             insert_tuple = sql_executer(insert_ql2)

@@ -37,6 +37,11 @@ from .views import content_detail_revise
 from .views import creativity_charsi_list
 from .views import creativity_file_save
 
+from .views import lesson_list
+from .views import lesson_upload
+
+from .views import creativity_behavior_list
+
 urlpatterns = [
     path('admin/', admin.site.urls),
 
@@ -68,12 +73,18 @@ urlpatterns = [
     path('api/asset-upload', asset_upload, name='asset_upload'),
     path('api/delete-asset', delete_asset, name='delete_asset'),
 
-    path('api/content-upload', content_upload, name='content_upload'),
+    path('api/lesson-list', lesson_list, name='lesson-list'),
+    path('api/lesson-upload', lesson_upload, name='lesson-upload'),
 
+    path('api/content-upload', content_upload, name='content_upload'),
     path('api/content-list', content_list, name='content_list'),
     path('api/content-detail-list', content_detail_list, name='content_detail_list'),
     path('api/content-detail-revise', content_detail_revise, name='content_detail_revise'),
 
     path('api/creativity-charsi-list', creativity_charsi_list, name='creativity_charsi_list'),    
     path('api/creativity-file-save', creativity_file_save, name='creativity_file_save'),
+
+    path('api/creativity-behavior-list', creativity_behavior_list, name='creativity_behavior_list'),
+
+
 ]
