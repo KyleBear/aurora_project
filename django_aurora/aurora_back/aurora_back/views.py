@@ -931,7 +931,7 @@ def child_detail_revise(request):
 
 @csrf_exempt
 @token_required
-@api_view(["POST"])
+@api_view(["GET"])
 def asset_list(request):
     asset_list = []
     asset_ql = f''' select asset_id, createdttm, asset_desc, asset_volume,asset_apply from au_asset '''
@@ -961,7 +961,7 @@ def asset_list(request):
 
 @csrf_exempt
 @token_required
-@api_view(["POST"])
+@api_view(["DELETE"])
 def delete_asset(request):
     asia_seoul = pytz.timezone('Asia/Seoul')
     body = request.body.decode("utf-8")
@@ -1060,7 +1060,7 @@ def asset_upload(request):
 
 @csrf_exempt
 @token_required
-@api_view(["POST"])
+@api_view(["PUT"])
 # 에셋 적용.
 def asset_revise(request):
     now_asia_seoul = cur_time_asia()
@@ -1091,19 +1091,24 @@ def asset_revise(request):
 #  지도안 
 @csrf_exempt
 @token_required
-@api_view(["POST"])
+@api_view(["GET"])
 def lesson_list(request):
 
     lesson_list = []
-    lesson_ql = f''' select lesson_id, start_age, end_age, level, createdttm, updatedttm, lesson_s3_url from au_lesson '''
+    lesson_ql = f''' select lesson_id, start_age, end_age, level_num, create_dttm, update_dttm, lesson_s3_url from au_lesson '''
     lesson_tuple = sql_executer(lesson_ql)
+    lesson_list = []
+
     for record in lesson_tuple:
-        lesson_id, start_age, level, createdttm, updatedttm, lesson_s3_url = record
+        lesson_id, start_age, end_age, level_num, create_dttm, update_dttm, lesson_s3_url = record
         lesson_dict = {"lesson_id": lesson_id,
                         "start_age": start_age,
                         "end_age": end_age,
-                        "level": level,
+                        "level_num": level_num,
+                        "createdttm": create_dttm,
+                        "updatedttm": update_dttm,
                         "lesson_s3_url": lesson_s3_url}        
+        lesson_list.append(lesson_dict)
     # 지도안 목록 # 지도안 다운로드 - s3 url 
     response_data = {
                     "code": 200,
@@ -1510,7 +1515,6 @@ def content_list(request):
         json_response = default_result(401,False,'check sort_order')
         return Response(json_response, status = '401')
     
-# 상세 ㅠㅜ
 @csrf_exempt
 @token_required
 @api_view(["POST"])
