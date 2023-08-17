@@ -41,6 +41,8 @@ from .views import lesson_list
 from .views import lesson_upload
 
 from .views import creativity_behavior_list
+from .views import creativity_behavior_detail_list
+from .views import creativity_behavior_valuate
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -85,6 +87,7 @@ urlpatterns = [
     path('api/creativity-file-save', creativity_file_save, name='creativity_file_save'),
 
     path('api/creativity-behavior-list', creativity_behavior_list, name='creativity_behavior_list'),
-
-
+    path('api/creativity-behavior-detail-list',creativity_behavior_detail_list, name='creativity_behavior_detail_list'),
+# 평가하기
+    path('api/creativity-behavior-valuate',creativity_behavior_valuate, name='creativity_behavior_valuate'),
 ]

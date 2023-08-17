@@ -991,53 +991,6 @@ def delete_asset(request):
         return Response(json_response, status = 401)
 
 
-# @csrf_exempt
-# @token_required
-# @api_view(["POST"])
-# def asset_upload(request):
-#     now_asia_seoul = cur_time_asia()
-#     body = request.body.decode("utf-8")
-#     data = json.loads(body)
-
-#     file_size_mb = data.get("file_size")
-#     file_name = data.get("file_name")
-#     asset_desc = data.get("asset_desc")
-#     base64_asset = data.get('raw_asset_data') # wav file
-
-#     base64_bytes = base64_asset.encode('utf-8')
-#     byte_array = base64.b64decode(base64_bytes)
-
-#     content_uploaddir= "application_file/asset/"+file_name+".zip"
-
-#     try:
-#         s3 = s3connect()
-#         bucket_name = 'aurora'
-#         with open('output_from_asset.zip', 'wb') as output_file:
-#             output_file.write(byte_array)
-#         with open('output_from_aset.zip', 'rb') as output_file:
-#             s3.upload_fileobj(output_file, bucket_name, content_uploaddir, ExtraArgs={'ACL': 'public-read'})
-#             current_time = now_asia_seoul.strftime("%Y%m%d%H%M%S")  # 현재 시간을 문자열로 변환                    
-#             random_alphabet = ''.join(random.choice(string.ascii_letters) for _ in range(5))  # 랜덤 알파벳 5개 생성
-#             asset_id = 'A' + current_time + random_alphabet
-#             s3_url = f''' https://kr.object.ncloudstorage.com/"{bucket_name}"/"{content_uploaddir}" '''
-
-#             try:
-#                 asset_insert = f''' insert into au_asset (asset_id, asset_name,createdttm, asset_desc, asset_volume, asset_apply, asset_s3_url) VALUES ("{asset_id}", "{file_name}" ,"{now_asia_seoul}", "{asset_desc}", "{file_size_mb}","N", "{s3_url}" ) '''
-#                 asset_insert_ql = sql_executer(asset_insert)
-#                 json_response = default_result(200,True,'asset successfully insertted')
-#                 return Response(json_response, status = status.HTTP_200_OK)
-#             except:
-#                 json_response = default_result(400,False,'asset insertted False')
-#                 return Response(json_response, status = 400)
-
-#     except:
-#         json_response = default_result(401,False, 'asset upload False')
-#         return Response(json_response, status = 401)    
-
-#     json_response = default_result(401,False, 'asset upload False')
-#     return Response(json_response, status = 401)    
-
-
 @csrf_exempt
 @token_required
 @api_view(["POST"])
@@ -1140,9 +1093,6 @@ def asset_revise(request):
 @token_required
 @api_view(["POST"])
 def lesson_list(request):
-    # asset_list = []
-    # asset_ql = f''' select asset_id, createdttm, asset_desc, asset_volume,asset_apply from au_asset '''
-    # asset_tuple = sql_executer(asset_ql)
 
     lesson_list = []
     lesson_ql = f''' select lesson_id, start_age, end_age, level, createdttm, updatedttm, lesson_s3_url from au_lesson '''
@@ -1166,6 +1116,9 @@ def lesson_list(request):
     json_response = response_data
     return Response(json_response, status= status.HTTP_200_OK)
 
+@csrf_exempt
+@token_required
+@api_view(["POST"])
 def lesson_upload(request):
     # 지도안 업로드  
     now_asia_seoul = cur_time_asia()
@@ -1195,9 +1148,10 @@ def lesson_upload(request):
                 start_age = request.POST.get('start_age')
                 end_age = request.POST.get('end_age')
                 level = request.POST.get('level')
-
+                # pdb.set_trace()
                 try:
-                    lesson_insert = f''' insert into au_lesson (lesson_id, lesson_name, start_age, end_age, level, create_dttm, update_dttm) VALUES ("{lesson_id}", "{file.name}", "{start_age}", "{end_age}","{level}" ,"{now_asia_seoul}", "{now_asia_seoul}", ) '''
+                    lesson_insert = f''' insert into au_lesson (lesson_id, lesson_name, start_age, end_age, level, create_dttm, update_dttm, lesson_s3_url) VALUES ("{lesson_id}", "{file.name}", "{start_age}", "{end_age}","{level}" ,"{now_asia_seoul}", "{now_asia_seoul}", "{s3_url}") '''
+                    # pdb.set_trace()
                     lesson_insert_ql = sql_executer(lesson_insert)
                     json_response = default_result(200,True,'asset successfully insertted')
                     return Response(json_response, status = status.HTTP_200_OK)
@@ -1232,143 +1186,197 @@ def lesson_upload(request):
     return Response(json_response, status = 401)
 
 
-# 1일 체크 한다고 치고, 
-
-
 # COU.4.1 .1
 # 창의력 평가 결과 목록 조회
 @csrf_exempt
 @token_required
 @api_view(["POST"])
+# 창의력 활동 리스트 
+# 아이가 어떤 창의력 활동을 했는지 보여줍니다. 
 def creativity_behavior_list(request):
     now_asia_seoul = cur_time_asia()
     body = request.body.decode("utf-8")
     data = json.loads(body)
     user_search = data.get("user_search") #자녀 이름, 학부모 아이디,
-    user_approval = data.get("user_approval")
+    rate_status = data.get("rate_status")
     start_age = data.get("start_age")
     end_age = data.get("end_age")
-    level = data.get("level") #차시
-    # 평가자 id , 평가상태 
+    level_num = data.get("level_num") #차시
 
     creativity_lists = []
-    # 대상연령 에 따라 분기를 칩니다. 
-    if start_age == "3":
+    # 대상연령 에 따라 분기를 칩니다. -> 필요없음. 
+    if start_age == "4" and end_age == "5":
         try:
-# 쿼리수정 
-            eval_listql = f''' SELECT user_id, evaluator_id, child_name, ar.target_age, ac.level_number, education_date, rate_status FROM aurora_db.au_creativity_rate ar left join au_charsilevel ac on ac.level_id = ar.level_id where (user_id like "%{user_search}%" or user_name like "%{user_search}%") and user_approval = "{user_approval}" and ac.level_number = "{level}" and target_age = "{start_age}" '''
-            pdb.set_trace()
-            eval_list = sql_executer(eval_listql)
-
-            for record in eval_list:
-                user_id, evaluator_id, child_name, target_age, level_id, education_date,rate_dttm, rate_status = record
-                eval_dict = {
+            creativity_listql = f''' SELECT ar.user_id, child_name, ac.start_age, ac.end_age ,ac.level_number, education_date, rate_status FROM aurora_db.zz_creativity_rate ar LEFT JOIN zz_charsilevel ac ON ac.level_id = ar.level_id left join au_user au on au.user_id  = ar.user_id WHERE (ar.user_id LIKE "%{user_search}%" OR au.user_name LIKE "%{user_search}%") and rate_status  = "{rate_status}" AND ac.level_number = "{level_num}" and ar.start_age = "{start_age}" and ar.end_age = "{end_age}" '''
+            creativity_list = sql_executer(creativity_listql)
+            for record in creativity_list:
+                user_id, child_name, start_age, end_age, level_num, education_date, rate_status = record
+                creativity_dict = {
                     "user_id": user_id,
-                    "evaluator_id": evaluator_id,
                     "chlid_name": child_name,
-                    "target_age": target_age,
-                    # "level_id": level_id,
-                    "level_number": level_number,
+                    "start_age": start_age,
+                    "end_age": end_age,
+                    "level_number": level_num,
                     "education_date": education_date,
                     "rate_status": rate_status
                 }
-                eval_lists.append(eval_dict) # 딕셔너리를 리스트에 추가
-
+                creativity_lists.append(creativity_dict) # 딕셔너리를 리스트에 추가
             response_data = {"code": 200,
                     "success": True,
-                    "message": "evaluator list successfully get",
-                    "data": {"eval_list": eval_lists}
-                    }
-
-            json_response = response_data
-            return Response(json_response, status= status.HTTP_200_OK)
-        except:
-            json_response = default_result(400,False,'evaluator select error')
-            return Response(json_response, status= 400)
-    elif start_age == 4 and end_age == 5:
-        try:
-            eval_listql = f''' SELECT user_id, evaluator_id, child_name, 
-                                ar.target_age, ac.level_number, education_date, rate_status 
-                                FROM aurora_db.au_creativity_rate ar 
-                                left join au_charsilevel ac on ac.level_id = ar.level_id 
-                                where (user_id like "%{user_search}%" or user_name like "%{user_search}%") and user_approval = "{user_approval}" and ac.level_number = "{level}" and target_age => "{start_age}" and target_age <= "{end_age}" '''
-            eval_list = sql_executer(eval_listql)
-            for record in eval_list:
-                user_id, evaluator_id, child_name, target_age, level_id, education_date,rate_dttm, rate_status = record
-                eval_dict = {
-                    "user_id": user_id,
-                    "evaluator_id": evaluator_id,
-                    "chlid_name": child_name,
-                    "target_age": target_age,
-                    # "level_id": level_id,
-                    "level_number": level_number,
-                    "education_date": education_date,
-                    "rate_status": rate_status
-                }
-                eval_lists.append(eval_dict) # 딕셔너리를 리스트에 추가
-            response_data = {"code": 200,
-                    "success": True,
-                    "message": "evaluator list successfully get",
-                    "data": {"eval_list": eval_lists}
+                    "message": "creativity_list successfully get",
+                    "data": {"creativity_list": creativity_lists}
                     }
             json_response = response_data
             return Response(json_response, status= status.HTTP_200_OK)
         except:
-            json_response = default_result(400,False,'evaluator select error')
+            json_response = default_result(400,False,'creativity_list select error')
             return Response(json_response, status= 400)
 
-    elif start_age == 6 and end_age == 7:
+    elif start_age == "5" and end_age == "6":
         try:
-            eval_listql = f''' SELECT user_id, evaluator_id, child_name, 
-                                ar.target_age, ac.level_number, education_date, rate_status 
-                                FROM aurora_db.au_creativity_rate ar 
-                                left join au_charsilevel ac on ac.level_id = ar.level_id 
-                                where (user_id like "%{user_search}%" or user_name like "%{user_search}%") and user_approval = "{user_approval}" and ac.level_number = "{level}" and target_age => "{start_age}" and target_age <= "{end_age}" '''
-            eval_list = sql_executer(eval_listql)
-            for record in eval_list:
-                user_id, evaluator_id, child_name, target_age, level_id, education_date,rate_dttm, rate_status = record
-                eval_dict = {
+            creativity_listql = f''' SELECT ar.user_id, child_name, ac.start_age, ac.end_age ,ac.level_number, education_date, rate_status FROM aurora_db.zz_creativity_rate ar LEFT JOIN zz_charsilevel ac ON ac.level_id = ar.level_id left join au_user au on au.user_id  = ar.user_id WHERE (ar.user_id LIKE "%{user_search}%" OR au.user_name LIKE "%{user_search}%") and rate_status  = "{rate_status}" AND ac.level_number = "{level_num}" and ar.start_age = "{start_age}" and ar.end_age = "{end_age}" '''
+
+            creativity_list = sql_executer(creativity_listql)
+            for record in creativity_list:
+                user_id, child_name, start_age, end_age, level_num, education_date, rate_status = record
+                creativity_dict = {
                     "user_id": user_id,
-                    "evaluator_id": evaluator_id,
                     "chlid_name": child_name,
-                    "target_age": target_age,
-                    # "level_id": level_id,
-                    "level_number": level_number,
+                    "start_age": start_age,
+                    "end_age": end_age,
+                    "level_number": level_num,
                     "education_date": education_date,
                     "rate_status": rate_status
                 }
-                eval_lists.append(eval_dict) # 딕셔너리를 리스트에 추가
+                creativity_lists.append(creativity_dict) # 딕셔너리를 리스트에 추가
             response_data = {"code": 200,
                     "success": True,
-                    "message": "evaluator list successfully get",
-                    "data": {"eval_list": eval_lists}
+                    "message": "creativity_list successfully get",
+                    "data": {"creativity_list": creativity_lists}
                     }
             json_response = response_data
             return Response(json_response, status= status.HTTP_200_OK)
         except:
-            json_response = default_result(400,False,'evaluator select error')
+            json_response = default_result(400,False,'creativity_list select error')
             return Response(json_response, status= 400)
     # 창의력 활동 조회 , ++ 대상연령, 평가상태를 더합니다.
     # 모든 창의력 활동을 조회합니다. #평가 상태도 조회 
     response_data = default_result(401, False, 'creativity behavior list failed')
     json_response = response_data
-    return Response(json_response, status = '401')
+    return Response(json_response, status = 401)
 
-# 창의력 평가 하기
+# 창의력 평가 상세
 @csrf_exempt
 @token_required
 @api_view(["POST"])
-def creativity_behavior_valuate(request):
+def creativity_behavior_detail_list(request):
+    now_asia_seoul = cur_time_asia()
+    body = request.body.decode("utf-8")
+    data = json.loads(body)
 
+    user_id = data.get("user_id")
+    child_name = data.get("child_name")
+    start_age = data.get("start_age")
+    end_age = data.get("end_age")
+    level_num = data.get("level_num")
 
-# au user, 유저테이블, 
-# 창의력 교육정보 테이블, 
-# 지도안 테이블 
+# 1. 지도안 url
+# 2.  + level_id , 아이들 활동 s3_url , stage , level_num , rate source   
+# 3. 독창성 , 창의성 가져오기 
+# creativity s3 url (활동 url)
 
+    s3_lesson_ql = f''' SELECT lesson_s3_url from au_lesson where start_age = "{start_age}" and end_age = "{end_age}" and level_num = {level_num} '''
+    # child_behavior_ql = f''' SELECT zcr.level_id, zcr.creativity_behavior_s3url, zc.stage, zc.level_number,zc.rate_source from zz_creativity_rate zcr inner join zz_charsilevel zc on zcr.level_id = zc.level_id  where zcr.user_id = "{user_id}" and zcr.child_name = "{child_name}" and zcr.start_age = "{start_age}" and zcr.end_age = "{end_age}" ;  '''
+    child_behavior_ql = f''' SELECT zcr.level_id, zcr.creativity_behavior_s3url, zc.stage, zc.level_number,zc.rate_source, zcr.rate, zcr.rate_dttm from zz_creativity_rate zcr inner join zz_charsilevel zc on zcr.level_id = zc.level_id  where zcr.user_id = "{user_id}" and zcr.child_name = "{child_name}" and zcr.start_age = "{start_age}" and zcr.end_age = "{end_age}" ;  '''
 
-    response_data = default_result(401, False, 'user update fail')
+    try:
+        lesson_s3_url = sql_executer(s3_lesson_ql)[0][0]
+        child_behavior_lists = []
+        child_behavior_list = sql_executer(child_behavior_ql)
+
+        for record in child_behavior_list:
+            # level_id , creativity_behavior_s3url, stage, level_number, rate_source = record
+            level_id , creativity_behavior_s3url, stage, level_number, rate_source, rate, rate_dttm = record
+            child_dict = {
+                "level_id": level_id,
+                "creativity_behavior_s3url": creativity_behavior_s3url,
+                "stage": stage,
+                "level_number": level_number,
+                "rate_source": rate_source,
+                "rate": rate,
+                "rate_dttm": rate_dttm
+            }
+
+            child_behavior_lists.append(child_dict)
+
+        response_data = {"code": 200,
+                "success": True,
+                "message": "lesson_s3_url successfully get",
+                "data": {"lesson_s3_url": lesson_s3_url,
+                "child_behavior_lists": child_behavior_lists 
+                }
+                }
+        json_response = response_data
+        return Response(json_response, status= status.HTTP_200_OK)        
+    except:
+        response_data = default_result(400, False, 's3 url get fail')
+        json_response = response_data
+        return Response(json_response, status = 400)
+
+    response_data = default_result(400, False, 's3 url get fail')
     json_response = response_data
-    return Response(json_response, status = '401')
+    return Response(json_response, status = 400)
+
+
+# 창의력 평가하기 
+@csrf_exempt
+@token_required
+@api_view(["PUT"])
+def creativity_behavior_valuate(request):
+    now_asia_seoul = cur_time_asia()
+    body = request.body.decode("utf-8")
+    data = json.loads(body)
+    
+    child_id = data.get("child_id")    
+    evaluator_id = data.get("evaluator_id") #현재 로그인한 평가자의 id
+     
+    level_id1 = data.get("level_id1")
+    rate1 = data.get("rate1")
+
+    level_id2 = data.get("level_id2")
+    rate2 = data.get("rate2")
+
+    level_id3 = data.get("level_id3")  
+    rate3 = data.get("rate3")
+
+    update_rateql = ( f' UPDATE zz_creativity_rate SET evaluator_id = '
+    f' CASE WHEN level_id = "{level_id1}" THEN "{evaluator_id}" '
+    f' WHEN level_id = "{level_id2}" THEN "{evaluator_id}" '
+    f' WHEN level_id = "{level_id3}" THEN "{evaluator_id}" ' 
+    f' ELSE evaluator_id END, '
+    f' rate_status = "Y", '
+    f' rate_dttm = "{now_asia_seoul}", rate = CASE '
+    f'  WHEN level_id = "{level_id1}" THEN "{rate1}" '
+    f'  WHEN level_id = "{level_id2}" THEN "{rate2}" '
+    f'  WHEN level_id = "{level_id3}" THEN "{rate3}" '
+    f'  ELSE rate END '
+    f' WHERE child_id = "{child_id}" and level_id IN ("{level_id1}", "{level_id2}","{level_id3}") '
+     )
+
+    try:
+        update_ql = sql_executer(update_rateql)
+        response_data = default_result(200, True, 'update successfully finished')
+        json_response = response_data
+        return Response(json_response, status= status.HTTP_200_OK)
+    except:
+        response_data = default_result(400, True, 'updateql falsed')
+        json_response = response_data
+        return Response(json_response, status= status.HTTP_200_OK)
+
+    response_data = default_result(400, False, 's3 url get fail')
+    json_response = response_data
+    return Response(json_response, status = 400)
+
 
 import base64
 
@@ -1590,21 +1598,22 @@ def creativity_charsi_list(request):
 
         birth_date_time = datetime.strptime(birth_date, '%Y-%m-%d')
         target_age = now_asia_seoul.year - birth_date_time.year - ((now_asia_seoul.month, now_asia_seoul.day) < (birth_date_time.month, birth_date_time.day))
+        # charsili_ql = f''' select distinct level_name,level_number from au_charsilevel where target_age = "{target_age}" order by "level_id" asc '''
+        charsili_ql = f''' select distinct level_id,level_name,level_number from zz_charsilevel where start_age <= "{target_age}" and end_age >= "{target_age}" order by "level_id" asc '''
 
-        # charsili_ql = f''' select distinct level_id ,level_name,level_number from au_charsilevel where target_age = "{target_age}" order by "level_id" asc '''
-        charsili_ql = f''' select distinct level_name,level_number from au_charsilevel where target_age = "{target_age}" order by "level_number" asc '''
         charsi_list = sql_executer(charsili_ql)
         char_lists = []
 
+        # fin_charql = f''' select max(level_number) from au_creative_behavior where child_id = "{child_id}" '''
         fin_charql = f''' select max(level_number) from au_creative_behavior where child_id = "{child_id}" '''
         fin_charsirow = sql_executer(fin_charql)
         fin_charsi = fin_charsirow[0][0]
-# child aging, target charsi change. 
-# finished charsi
+
         for record in charsi_list:
-            # level_id,level_name,level_number = record
-            level_name,level_number = record
-            char_dict = { 
+            level_id,level_name,level_number = record
+            # level_name,level_number = record
+            char_dict = {
+                "level_id": level_id, 
                 "level_name":level_name,
                 "level_number":level_number
              }
@@ -1627,8 +1636,8 @@ def creativity_charsi_list(request):
         json_response = default_result(400,False,'DB table select error ')
         return Response(json_response, status = 400)
     except:
-        json_response = default_result(400,False,'unknown error')
-        return Response(json_response, status = '401')   
+        json_response = default_result(401,False,'unknown error')
+        return Response(json_response, status = 401)   
 
 
 @csrf_exempt
@@ -1641,11 +1650,17 @@ def creativity_file_save(request):
     data = json.loads(body)
     user_id = data.get("user_id")
     child_id = data.get("child_id")
+
+
     level_num = data.get("level_num")
     level_name = data.get("level_name")
 
     base64_mp3 = data.get('raw_sound_data') # wav file
     base64_img = data.get('raw_img_data') # png file
+
+
+    level_id = data.get('level_id') #level_id 추가 , 이유 ? - 해당 아이
+    child_name = data.get('child_name')
 # create s3 url 
     try:
         s3 = s3connect()
@@ -1661,11 +1676,15 @@ def creativity_file_save(request):
             with open('output_from_json.png', 'rb') as output_file:
                 s3.upload_fileobj(output_file, bucket_name, content_uploaddir, ExtraArgs={'ACL': 'public-read'})
             s3_img_url = f'https://kr.object.ncloudstorage.com/{bucket_name}/creativity/image/{user_id}/{child_id}/{level_name}.png'
-            insert_ql2 = f''' INSERT INTO au_creative_behavior (child_id, level_number, file_name, create_date, creativity_behavior_s3url) VALUES ("{child_id}","{level_num}","{level_name}.png","{now_asia_seoul}","{s3_img_url}") '''
+            insert_ql2 = f''' INSERT INTO au_creative_behavior (child_id, level_id, level_number, file_name, create_date, creativity_behavior_s3url) VALUES ("{child_id}","{level_id}","{level_num}","{level_name}.png","{now_asia_seoul}","{s3_img_url}") '''
             insert_tuple = sql_executer(insert_ql2)
+
+            insert_ql20 = f''' INSERT INTO zz_creativity_rate (user_id, child_id, level_number, create_date, creativity_behavior_s3url) VALUES ("{user_id}","{child_id}","{level_num}","{now_asia_seoul}","{s3_img_url}") '''            
+            insert_tuple = sql_executer(insert_ql20)
+ 
             json_response = default_result(200,True,'image(png) file inserted successfully')
             return Response(json_response, status = 200)
-            # pdb.set_trace()
+
         elif base64_img is None and base64_mp3 is not None:
 
             base64_bytes2 = base64_mp3.encode('utf-8')
@@ -1678,8 +1697,12 @@ def creativity_file_save(request):
                 # s3.upload_fileobj(output_file, bucket_name, content_uploaddir)
                 s3.upload_fileobj(output_file, bucket_name, content_uploaddir, ExtraArgs={'ACL': 'public-read'})
             s3_mp3_url = f'https://kr.object.ncloudstorage.com/{bucket_name}/creativity/sound/{user_id}/{child_id}/{level_name}.wav'
-            insert_ql1 = f''' INSERT INTO au_creative_behavior (child_id, level_number, file_name, create_date, creativity_behavior_s3url) VALUES ("{child_id}","{level_num}","{level_name}.mp3","{now_asia_seoul}","{s3_mp3_url}") '''
+            insert_ql1 = f''' INSERT INTO au_creative_behavior (child_id, level_id, level_number, file_name, create_date, creativity_behavior_s3url) VALUES ("{child_id}", "{level_id}","{level_num}","{level_name}.mp3","{now_asia_seoul}","{s3_mp3_url}") '''
             insert_tuple = sql_executer(insert_ql1)
+
+            insert_ql20 = f''' INSERT INTO zz_creativity_rate (user_id, child_id, level_number, create_date, creativity_behavior_s3url) VALUES ("{user_id}","{child_id}","{level_num}","{now_asia_seoul}","{s3_mp3_url}") '''
+            insert_tuple = sql_executer(insert_ql20)
+
 
             json_response = default_result(200,True,'sound file(wav) inserted successfully')
             return Response(json_response, status = 200)
@@ -1695,9 +1718,15 @@ def creativity_file_save(request):
             with open('output_from_json.wav', 'rb') as output_file:
                 s3.upload_fileobj(output_file, bucket_name, content_uploaddir, ExtraArgs={'ACL': 'public-read'}) #ExtraArgs={'ACL': 'public-read'}
             s3_mp3_url = f'https://kr.object.ncloudstorage.com/{bucket_name}/creativity/sound/{user_id}/{child_id}/{level_name}.wav'
-            insert_ql1 = f''' INSERT INTO au_creative_behavior (child_id, level_number, file_name, create_date, creativity_behavior_s3url) VALUES ("{child_id}","{level_num}","{level_name}.wav","{now_asia_seoul}","{s3_mp3_url}") '''
+            insert_ql1 = f''' INSERT INTO au_creative_behavior (child_id, level_id,level_number, file_name, create_date, creativity_behavior_s3url) VALUES ("{child_id}", "{level_id}","{level_num}","{level_name}.wav","{now_asia_seoul}","{s3_mp3_url}") '''
             insert_tuple = sql_executer(insert_ql1)
+
             # 이미지
+
+            # start_age, end_age 를 가져오는법 
+            insert_ql20 = f''' INSERT INTO zz_creativity_rate (user_id, child_id, child_name, level_number, level_id, create_date, creativity_behavior_s3url) VALUES ("{user_id}","{child_id}", "{child_name}", "{level_num}", "{level_id}", "{now_asia_seoul}","{s3_mp3_url}") '''
+            insert_tuple = sql_executer(insert_ql20)
+
             base64_bytes2 = base64_img.encode('utf-8')
             byte_array = base64.b64decode(base64_bytes2)
             content_uploaddir= "creativity/image/"+user_id+"/"+child_id+"/"+level_name+".png"
@@ -1706,8 +1735,11 @@ def creativity_file_save(request):
             with open('output_from_json.png', 'rb') as output_file:
                 s3.upload_fileobj(output_file, bucket_name, content_uploaddir, ExtraArgs={'ACL': 'public-read'})
             s3_img_url = f'https://kr.object.ncloudstorage.com/{bucket_name}/creativity/image/{user_id}/{child_id}/{level_name}.png'
-            insert_ql2 = f''' INSERT INTO au_creative_behavior (child_id, level_number, file_name, create_date, creativity_behavior_s3url) VALUES ("{child_id}","{level_num}","{level_name}.png","{now_asia_seoul}","{s3_img_url}") '''
+            insert_ql2 = f''' INSERT INTO au_creative_behavior (child_id, level_id,level_number, file_name, create_date, creativity_behavior_s3url) VALUES ("{child_id}", "{level_id}","{level_num}","{level_name}.png","{now_asia_seoul}","{s3_img_url}") '''
             insert_tuple = sql_executer(insert_ql2)
+
+            insert_ql20 = f''' INSERT INTO zz_creativity_rate (user_id, child_id, level_number, create_date, creativity_behavior_s3url) VALUES ("{user_id}","{child_id}","{level_num}","{now_asia_seoul}","{s3_img_url}") '''
+            insert_tuple = sql_executer(insert_ql20)
 
             json_response = default_result(200,True,'sound(wav) file and image(png) file inserted successfully')
             return Response(json_response, status = 200)            
