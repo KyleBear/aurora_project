@@ -39,6 +39,7 @@ from .views import creativity_file_save
 
 from .views import lesson_list
 from .views import lesson_upload
+from .views import lesson_delete
 
 from .views import creativity_behavior_list
 from .views import creativity_behavior_detail_list
@@ -77,6 +78,8 @@ urlpatterns = [
 
     path('api/lesson-list', lesson_list, name='lesson-list'),
     path('api/lesson-upload', lesson_upload, name='lesson-upload'),
+    path('api/lesson-delete', lesson_delete, name='lesson-delete'),
+
 
     path('api/content-upload', content_upload, name='content_upload'),
     path('api/content-list', content_list, name='content_list'),

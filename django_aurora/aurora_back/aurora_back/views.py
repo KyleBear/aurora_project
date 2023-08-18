@@ -300,7 +300,8 @@ def signup(request):
             user_agreement = data.get("user_agreement")
 
             user_pwd = hash_pwd_mk(user_pwd)      
-            user_insert_ql = f'''  INSERT INTO au_user (user_id, user_pwd, user_type, user_phone) VALUES ("{user_id}", "{user_pwd}", "{user_type}", "{user_phone}") '''
+            # user_insert_ql = f'''  INSERT INTO au_user (user_id, user_pwd, user_type, user_phone) VALUES ("{user_id}", "{user_pwd}", "{user_type}", "{user_phone}") '''
+            user_insert_ql = f'''  INSERT INTO au_user (user_id, user_pwd, user_type, user_phone, create_date) VALUES ("{user_id}", "{user_pwd}", "{user_type}", "{user_phone}", "{now_asia_seoul}") '''
             insertql = sql_executer(user_insert_ql)
             
             for agreement in user_agreement:
@@ -481,9 +482,10 @@ def admin_list(request):
     data = json.loads(body)
     user_search = data.get("user_search")
     user_type = data.get("user_type")
+    page = data.get("page")
 
     admin_lists = []
-    admin_listql = f''' select user_id, user_name, create_date, login_date from au_user where (user_id like "%{user_search}%" or user_name like "%{user_search}%") and user_type = "{user_type}" '''
+    admin_listql = f''' select user_id, user_name, create_date, login_date from au_user where (user_id like "%{user_search}%" or user_name like "%{user_search}%") and user_type = "{user_type}" limit 50 offset {page} '''
     admin_list = sql_executer(admin_listql)
     for record in admin_list:
         user_id, user_name, create_date,login_date = record
@@ -594,11 +596,12 @@ def parent_list(request):
     data = json.loads(body)
     user_id = data.get("user_id")
     # user_type = data.get("user_type")
-
+    page = data.get("page")
+    
     parent_dicts = []
     try:
         # parent_listql = f''' select user_id, user_name, create_date, login_date from au_user where (user_id like "%{user_id}%") and user_type = "{user_type}" '''
-        parent_listql = f''' select user_id, user_name, create_date, login_date from au_user where (user_id like "%{user_id}%") '''
+        parent_listql = f''' select user_id, user_name, create_date, login_date from au_user where (user_id like "%{user_id}%") limit 50 offset {page} '''
         parent_qlcom = sql_executer(parent_listql)
 
         for record in parent_qlcom:
@@ -671,9 +674,12 @@ def evaluator_list(request):
     data = json.loads(body)
     user_search = data.get("user_search")
     user_approval = data.get("user_approval")     # user_approval ('Y','N')
+    page = data.get("page")
+
     eval_lists = []
     try:
-        eval_listql = f''' select user_id, user_name, create_date, login_date, user_approval from au_user where (user_id like "%{user_search}%" or user_name like "%{user_search}%") and user_approval = "{user_approval}" '''
+        # eval_listql = f''' select user_id, user_name, create_date, login_date, user_approval from au_user where (user_id like "%{user_search}%" or user_name like "%{user_search}%") and user_approval = "{user_approval}" '''
+        eval_listql = f''' select user_id, user_name, create_date, login_date, user_approval from au_user where (user_id like "%{user_search}%" or user_name like "%{user_search}%") and user_type = "evaluator" and user_approval like "%{user_approval}" limit 50 offset {page} '''
         eval_list = sql_executer(eval_listql)
 
         for record in eval_list:
@@ -905,7 +911,7 @@ def child_detail_search(request):
 @csrf_exempt
 @token_required
 @api_view(["POST"])
-# 자녀 프로필 수정
+# 자녀 프로필 수정R
 def child_detail_revise(request):
     body = request.body.decode("utf-8")
     data = json.loads(body)
@@ -1190,6 +1196,44 @@ def lesson_upload(request):
     json_response = response_data
     return Response(json_response, status = 401)
 
+#### 지도안 삭제
+@csrf_exempt
+@token_required
+@api_view(["DELETE"])
+def lesson_delete(request):
+    asia_seoul = pytz.timezone('Asia/Seoul')
+    body = request.body.decode("utf-8")
+    data = json.loads(body)
+    lesson_id = data.get("lesson_id")
+
+    lesson_check = f''' select lesson_name from au_asset where asset_id = "{lesson_id}" '''
+    lesson_check_col = sql_executer(lesson_check)
+
+    # if len(asset_check_col)>0:
+    if len(lesson_check_col)>0:
+        try:
+            s3 = s3connect()
+            bucket_name = 'aurora'
+            # object_name = f''' application_file/asset/"{asset_check_col[0][0]}" ''' #asset_check_col 은 에셋 파일이름입니다. .zip 파일. 
+            object_name = f'application_file/asset/"{lesson_check_col[0][0]}"' #asset_check_col 은 에셋 파일이름입니다. .zip 파일. 
+            s3.delete_object(Bucket=bucket_name, Key=object_name)
+            # DB delete 추가             
+            # delete_assetql = f''' Delete from au_asset where asset_id = "{asset_id}" '''
+            delete_lessonql = f''' Delete from au_lesson where lesson_id = "{lesson_id}" '''
+            deleteql = sql_executer(delete_lessonql)
+
+            # json_response = default_result(200,True,'asset successfully deleted')
+            json_response = default_result(200,True,'lesson successfully deleted')
+            return Response(json_response, status = status.HTTP_200_OK)
+
+        except:
+            json_response = default_result(401,False, 'delete asset error ')
+            return Response(json_response, status = 401)
+    else:
+        json_response = default_result(401,False, 'matching user does not exist ')
+        return Response(json_response, status = 401)
+
+
 
 # COU.4.1 .1
 # 창의력 평가 결과 목록 조회
@@ -1443,25 +1487,17 @@ def content_upload(request):
         return Response(json_response, status = '400')
 
 
-
-
-
 @csrf_exempt
 @token_required
 @api_view(["POST"])
 def content_list(request):
     body = request.body.decode("utf-8")
     data = json.loads(body)
-    content_title = data.get("content_title")
-
     user_id = data.get("user_id") #해당계정의 user_id
     sort_order = data.get("sort_order")
     content_list = []
 
-
-
 # 목록 조회를 할떄마다 presigned url 로 변경
-
     if sort_order == 'like':
         try:
             content_ql = f''' SELECT content_title ,content_s3_url,like_count,content_upload_date from au_ugccontent au left join au_likecount as al on au.content_id = al.content_id where user_id != "{user_id}" order by like_count desc; '''
@@ -1470,7 +1506,6 @@ def content_list(request):
                 content_title, content_s3_url, like_count,content_upload_date = record
                 content_dict = {
                     "content_title": content_title,
-                    # create_s3_url
                     "content_s3_url": content_s3_url,
                     "like_count": like_count,
                     "content_upload_date":content_upload_date
@@ -1602,8 +1637,8 @@ def creativity_charsi_list(request):
 
         birth_date_time = datetime.strptime(birth_date, '%Y-%m-%d')
         target_age = now_asia_seoul.year - birth_date_time.year - ((now_asia_seoul.month, now_asia_seoul.day) < (birth_date_time.month, birth_date_time.day))
-        # charsili_ql = f''' select distinct level_name,level_number from au_charsilevel where target_age = "{target_age}" order by "level_id" asc '''
-        charsili_ql = f''' select distinct level_id,level_name,level_number from zz_charsilevel where start_age <= "{target_age}" and end_age >= "{target_age}" order by "level_id" asc '''
+        charsili_ql = f''' select level_id,level_name,level_number from zz_charsilevel where start_age <= "{target_age}" and end_age >= "{target_age}" order by "level_id" asc '''
+        charsili_ql = f''' select distinct level_number,level_name from zz_charsilevel where start_age <= "{target_age}" and end_age >= "{target_age}" order by "level_id" asc '''
 
         charsi_list = sql_executer(charsili_ql)
         char_lists = []
@@ -1613,18 +1648,22 @@ def creativity_charsi_list(request):
         fin_charsirow = sql_executer(fin_charql)
         fin_charsi = fin_charsirow[0][0]
 
+        # for record in charsi_list:
+        #     level_id,level_name,level_number = record
+        #     # level_name,level_number = record
+        #     char_dict = {
+        #         "level_id": level_id, 
+        #         "level_name":level_name,
+        #         "level_number":level_number
+        #      }
+
         for record in charsi_list:
-            level_id,level_name,level_number = record
-            # level_name,level_number = record
+            level_number,level_name = record
             char_dict = {
-                "level_id": level_id, 
-                "level_name":level_name,
-                "level_number":level_number
+                "level_number":level_number,
+                "level_name":level_name
              }
             char_lists.append(char_dict)
-
-# give me charsi number that child completed.
-# in au_creativity behavior, i can find max number of charsi id, and when i coordinate with charsi. 
         response_data = {
                 "code": 200,
                 "success": True,
@@ -1652,24 +1691,27 @@ def creativity_file_save(request):
     now_asia_seoul = cur_time_asia()
     body = request.body.decode("utf-8")
     data = json.loads(body)
+
+    pdb.set_trace()
+
     user_id = data.get("user_id")
     child_id = data.get("child_id")
-
-
     level_num = data.get("level_num")
     level_name = data.get("level_name")
 
     base64_mp3 = data.get('raw_sound_data') # wav file
     base64_img = data.get('raw_img_data') # png file
 
-
-    level_id = data.get('level_id') #level_id 추가 , 이유 ? - 해당 아이
+    level_id = data.get('level_id') #level_id 추가 , 이유 ? - 해당 아이 차시가져오기.
     child_name = data.get('child_name')
+
+    rate_standard = data.get('rate_standard')
+
 # create s3 url 
     try:
         s3 = s3connect()
         bucket_name = 'aurora'
-        if base64_mp3 is None and base64_img is not None:
+        if base64_mp3 is None and base64_img is not None and base64_img != "":
             
             base64_bytes = base64_img.encode('utf-8')
             byte_array = base64.b64decode(base64_bytes)
@@ -1680,16 +1722,20 @@ def creativity_file_save(request):
             with open('output_from_json.png', 'rb') as output_file:
                 s3.upload_fileobj(output_file, bucket_name, content_uploaddir, ExtraArgs={'ACL': 'public-read'})
             s3_img_url = f'https://kr.object.ncloudstorage.com/{bucket_name}/creativity/image/{user_id}/{child_id}/{level_name}.png'
-            insert_ql2 = f''' INSERT INTO au_creative_behavior (child_id, level_id, level_number, file_name, create_date, creativity_behavior_s3url) VALUES ("{child_id}","{level_id}","{level_num}","{level_name}.png","{now_asia_seoul}","{s3_img_url}") '''
-            insert_tuple = sql_executer(insert_ql2)
+            # insert_ql2 = f''' INSERT INTO au_creative_behavior (child_id, level_id, level_number, file_name, create_date, creativity_behavior_s3url) VALUES ("{child_id}","{level_id}","{level_num}","{level_name}.png","{now_asia_seoul}","{s3_img_url}") '''
+            # insert_tuple = sql_executer(insert_ql2)
 
-            insert_ql20 = f''' INSERT INTO zz_creativity_rate (user_id, child_id, level_number, create_date, creativity_behavior_s3url) VALUES ("{user_id}","{child_id}","{level_num}","{now_asia_seoul}","{s3_img_url}") '''            
+            # insert_ql20 = f''' INSERT INTO zz_creativity_rate (user_id, child_id, level_number, create_date, creativity_behavior_s3url) VALUES ("{user_id}","{child_id}","{level_num}","{now_asia_seoul}","{s3_img_url}") '''            
+            # insert_tuple = sql_executer(insert_ql20)
+
+# rate standarrd 추가 
+            insert_ql20 = f''' INSERT INTO zz_creativity_rate (user_id, child_id, level_number, create_date, creativity_behavior_s3url, rate_standard) VALUES ("{user_id}","{child_id}","{level_num}","{now_asia_seoul}","{s3_img_url}", "{rate_standard}") '''
             insert_tuple = sql_executer(insert_ql20)
- 
+
             json_response = default_result(200,True,'image(png) file inserted successfully')
             return Response(json_response, status = 200)
 
-        elif base64_img is None and base64_mp3 is not None:
+        elif base64_img is None and base64_mp3 is not None and base64_mp3 != "":
 
             base64_bytes2 = base64_mp3.encode('utf-8')
             byte_array = base64.b64decode(base64_bytes2)
@@ -1701,17 +1747,22 @@ def creativity_file_save(request):
                 # s3.upload_fileobj(output_file, bucket_name, content_uploaddir)
                 s3.upload_fileobj(output_file, bucket_name, content_uploaddir, ExtraArgs={'ACL': 'public-read'})
             s3_mp3_url = f'https://kr.object.ncloudstorage.com/{bucket_name}/creativity/sound/{user_id}/{child_id}/{level_name}.wav'
-            insert_ql1 = f''' INSERT INTO au_creative_behavior (child_id, level_id, level_number, file_name, create_date, creativity_behavior_s3url) VALUES ("{child_id}", "{level_id}","{level_num}","{level_name}.mp3","{now_asia_seoul}","{s3_mp3_url}") '''
-            insert_tuple = sql_executer(insert_ql1)
 
-            insert_ql20 = f''' INSERT INTO zz_creativity_rate (user_id, child_id, level_number, create_date, creativity_behavior_s3url) VALUES ("{user_id}","{child_id}","{level_num}","{now_asia_seoul}","{s3_mp3_url}") '''
+            # insert_ql1 = f''' INSERT INTO au_creative_behavior (child_id, level_id, level_number, file_name, create_date, creativity_behavior_s3url) VALUES ("{child_id}", "{level_id}","{level_num}","{level_name}.mp3","{now_asia_seoul}","{s3_mp3_url}") '''
+            # insert_tuple = sql_executer(insert_ql1)
+
+# rate standard 추가 
+            # insert_ql20 = f''' INSERT INTO zz_creativity_rate (user_id, child_id, level_number, create_date, creativity_behavior_s3url) VALUES ("{user_id}","{child_id}","{level_num}","{now_asia_seoul}","{s3_mp3_url}") '''
+            # insert_tuple = sql_executer(insert_ql20)
+
+            insert_ql20 = f''' INSERT INTO zz_creativity_rate (user_id, child_id, level_number, create_date, creativity_behavior_s3url, rate_standard) VALUES ("{user_id}","{child_id}","{level_num}","{now_asia_seoul}","{s3_mp3_url}", "{rate_standard}") '''
             insert_tuple = sql_executer(insert_ql20)
 
 
             json_response = default_result(200,True,'sound file(wav) inserted successfully')
             return Response(json_response, status = 200)
 
-        elif base64_mp3 is not None and base64_img is not None:
+        elif base64_mp3 is not None and base64_img is not None and base64_img != "" and base64_mp3 != "":
             #소리 
             base64_bytes = base64_mp3.encode('utf-8')
             byte_array = base64.b64decode(base64_bytes)
@@ -1722,13 +1773,14 @@ def creativity_file_save(request):
             with open('output_from_json.wav', 'rb') as output_file:
                 s3.upload_fileobj(output_file, bucket_name, content_uploaddir, ExtraArgs={'ACL': 'public-read'}) #ExtraArgs={'ACL': 'public-read'}
             s3_mp3_url = f'https://kr.object.ncloudstorage.com/{bucket_name}/creativity/sound/{user_id}/{child_id}/{level_name}.wav'
+            # insert_ql1 = f''' INSERT INTO au_creative_behavior (child_id, level_id,level_number, file_name, create_date, creativity_behavior_s3url) VALUES ("{child_id}", "{level_id}","{level_num}","{level_name}.wav","{now_asia_seoul}","{s3_mp3_url}") '''
             insert_ql1 = f''' INSERT INTO au_creative_behavior (child_id, level_id,level_number, file_name, create_date, creativity_behavior_s3url) VALUES ("{child_id}", "{level_id}","{level_num}","{level_name}.wav","{now_asia_seoul}","{s3_mp3_url}") '''
             insert_tuple = sql_executer(insert_ql1)
 
             # 이미지
 
             # start_age, end_age 를 가져오는법 
-            insert_ql20 = f''' INSERT INTO zz_creativity_rate (user_id, child_id, child_name, level_number, level_id, create_date, creativity_behavior_s3url) VALUES ("{user_id}","{child_id}", "{child_name}", "{level_num}", "{level_id}", "{now_asia_seoul}","{s3_mp3_url}") '''
+            insert_ql20 = f''' INSERT INTO zz_creativity_rate (user_id, child_id, child_name, level_number, level_id, create_date, creativity_behavior_s3url, rate_standard) VALUES ("{user_id}","{child_id}", "{child_name}", "{level_num}", "{level_id}", "{now_asia_seoul}","{s3_mp3_url}", "{rate_standard}") '''
             insert_tuple = sql_executer(insert_ql20)
 
             base64_bytes2 = base64_img.encode('utf-8')
@@ -1742,7 +1794,8 @@ def creativity_file_save(request):
             insert_ql2 = f''' INSERT INTO au_creative_behavior (child_id, level_id,level_number, file_name, create_date, creativity_behavior_s3url) VALUES ("{child_id}", "{level_id}","{level_num}","{level_name}.png","{now_asia_seoul}","{s3_img_url}") '''
             insert_tuple = sql_executer(insert_ql2)
 
-            insert_ql20 = f''' INSERT INTO zz_creativity_rate (user_id, child_id, level_number, create_date, creativity_behavior_s3url) VALUES ("{user_id}","{child_id}","{level_num}","{now_asia_seoul}","{s3_img_url}") '''
+            # insert_ql20 = f''' INSERT INTO zz_creativity_rate (user_id, child_id, level_number, create_date, creativity_behavior_s3url) VALUES ("{user_id}","{child_id}","{level_num}","{now_asia_seoul}","{s3_img_url}") '''
+            insert_ql20 = f''' INSERT INTO zz_creativity_rate (user_id, child_id, level_number, create_date, creativity_behavior_s3url,rate_standard) VALUES ("{user_id}","{child_id}","{level_num}","{now_asia_seoul}","{s3_img_url}", "{rate_standard}") '''
             insert_tuple = sql_executer(insert_ql20)
 
             json_response = default_result(200,True,'sound(wav) file and image(png) file inserted successfully')
@@ -1769,3 +1822,140 @@ def creativity_file_save(request):
     return Response(json_response, status = 400)
 
 
+@csrf_exempt
+@token_required
+@api_view(["POST"])
+def creativity_file_save2(request):
+# 대상테이블 # 창의력 활동 
+    now_asia_seoul = cur_time_asia()
+    body = request.body.decode("utf-8")
+    data = json.loads(body)
+
+    pdb.set_trace()
+
+    user_id = data.get("user_id")
+    child_id = data.get("child_id")
+    level_num = data.get("level_num")
+    level_name = data.get("level_name")
+
+    base64_mp3 = data.get('raw_sound_data') # wav file
+    base64_img = data.get('raw_img_data') # png file
+
+    level_id = data.get('level_id') #level_id 추가 , 이유 ? - 해당 아이 차시가져오기.
+    child_name = data.get('child_name')
+
+    rate_standard = data.get('rate_standard')
+
+# create s3 url 
+    try:
+        s3 = s3connect()
+        bucket_name = 'aurora'
+        if base64_mp3 is None and base64_img is not None and base64_img != "":
+            
+            base64_bytes = base64_img.encode('utf-8')
+            byte_array = base64.b64decode(base64_bytes)
+
+            content_uploaddir= "creativity/image/"+user_id+"/"+child_id+"/"+level_name+".png"
+            with open('output_from_json.png', 'wb') as output_file:
+                output_file.write(byte_array)
+            with open('output_from_json.png', 'rb') as output_file:
+                s3.upload_fileobj(output_file, bucket_name, content_uploaddir, ExtraArgs={'ACL': 'public-read'})
+            s3_img_url = f'https://kr.object.ncloudstorage.com/{bucket_name}/creativity/image/{user_id}/{child_id}/{level_name}.png'
+            # insert_ql2 = f''' INSERT INTO au_creative_behavior (child_id, level_id, level_number, file_name, create_date, creativity_behavior_s3url) VALUES ("{child_id}","{level_id}","{level_num}","{level_name}.png","{now_asia_seoul}","{s3_img_url}") '''
+            # insert_tuple = sql_executer(insert_ql2)
+
+            # insert_ql20 = f''' INSERT INTO zz_creativity_rate (user_id, child_id, level_number, create_date, creativity_behavior_s3url) VALUES ("{user_id}","{child_id}","{level_num}","{now_asia_seoul}","{s3_img_url}") '''            
+            # insert_tuple = sql_executer(insert_ql20)
+
+# rate standarrd 추가 
+            insert_ql20 = f''' INSERT INTO zz_creativity_rate (user_id, child_id, level_number, create_date, creativity_behavior_s3url, rate_standard) VALUES ("{user_id}","{child_id}","{level_num}","{now_asia_seoul}","{s3_img_url}", "{rate_standard}") '''
+            insert_tuple = sql_executer(insert_ql20)
+
+            json_response = default_result(200,True,'image(png) file inserted successfully')
+            return Response(json_response, status = 200)
+
+        elif base64_img is None and base64_mp3 is not None and base64_mp3 != "":
+
+            base64_bytes2 = base64_mp3.encode('utf-8')
+            byte_array = base64.b64decode(base64_bytes2)
+
+            content_uploaddir= "creativity/sound/"+user_id+"/"+child_id+"/"+level_name+".wav"
+            with open('output_from_json.wav', 'wb') as output_file:
+                output_file.write(byte_array)
+            with open('output_from_json.wav', 'rb') as output_file:
+                # s3.upload_fileobj(output_file, bucket_name, content_uploaddir)
+                s3.upload_fileobj(output_file, bucket_name, content_uploaddir, ExtraArgs={'ACL': 'public-read'})
+            s3_mp3_url = f'https://kr.object.ncloudstorage.com/{bucket_name}/creativity/sound/{user_id}/{child_id}/{level_name}.wav'
+
+            # insert_ql1 = f''' INSERT INTO au_creative_behavior (child_id, level_id, level_number, file_name, create_date, creativity_behavior_s3url) VALUES ("{child_id}", "{level_id}","{level_num}","{level_name}.mp3","{now_asia_seoul}","{s3_mp3_url}") '''
+            # insert_tuple = sql_executer(insert_ql1)
+
+# rate standard 추가 
+            # insert_ql20 = f''' INSERT INTO zz_creativity_rate (user_id, child_id, level_number, create_date, creativity_behavior_s3url) VALUES ("{user_id}","{child_id}","{level_num}","{now_asia_seoul}","{s3_mp3_url}") '''
+            # insert_tuple = sql_executer(insert_ql20)
+
+            insert_ql20 = f''' INSERT INTO zz_creativity_rate (user_id, child_id, level_number, create_date, creativity_behavior_s3url, rate_standard) VALUES ("{user_id}","{child_id}","{level_num}","{now_asia_seoul}","{s3_mp3_url}", "{rate_standard}") '''
+            insert_tuple = sql_executer(insert_ql20)
+
+
+            json_response = default_result(200,True,'sound file(wav) inserted successfully')
+            return Response(json_response, status = 200)
+
+        elif base64_mp3 is not None and base64_img is not None and base64_img != "" and base64_mp3 != "":
+            #소리 
+            base64_bytes = base64_mp3.encode('utf-8')
+            byte_array = base64.b64decode(base64_bytes)
+
+            content_uploaddir= "creativity/sound/"+user_id+"/"+child_id+"/"+level_name+".wav"
+            with open('output_from_json.wav', 'wb') as output_file:
+                output_file.write(byte_array)
+            with open('output_from_json.wav', 'rb') as output_file:
+                s3.upload_fileobj(output_file, bucket_name, content_uploaddir, ExtraArgs={'ACL': 'public-read'}) #ExtraArgs={'ACL': 'public-read'}
+            s3_mp3_url = f'https://kr.object.ncloudstorage.com/{bucket_name}/creativity/sound/{user_id}/{child_id}/{level_name}.wav'
+            # insert_ql1 = f''' INSERT INTO au_creative_behavior (child_id, level_id,level_number, file_name, create_date, creativity_behavior_s3url) VALUES ("{child_id}", "{level_id}","{level_num}","{level_name}.wav","{now_asia_seoul}","{s3_mp3_url}") '''
+            insert_ql1 = f''' INSERT INTO au_creative_behavior (child_id, level_id,level_number, file_name, create_date, creativity_behavior_s3url) VALUES ("{child_id}", "{level_id}","{level_num}","{level_name}.wav","{now_asia_seoul}","{s3_mp3_url}") '''
+            insert_tuple = sql_executer(insert_ql1)
+
+            # 이미지
+
+            # start_age, end_age 를 가져오는법 
+            insert_ql20 = f''' INSERT INTO zz_creativity_rate (user_id, child_id, child_name, level_number, level_id, create_date, creativity_behavior_s3url, rate_standard) VALUES ("{user_id}","{child_id}", "{child_name}", "{level_num}", "{level_id}", "{now_asia_seoul}","{s3_mp3_url}", "{rate_standard}") '''
+            insert_tuple = sql_executer(insert_ql20)
+
+            base64_bytes2 = base64_img.encode('utf-8')
+            byte_array = base64.b64decode(base64_bytes2)
+            content_uploaddir= "creativity/image/"+user_id+"/"+child_id+"/"+level_name+".png"
+            with open('output_from_json.png', 'wb') as output_file:
+                output_file.write(byte_array)
+            with open('output_from_json.png', 'rb') as output_file:
+                s3.upload_fileobj(output_file, bucket_name, content_uploaddir, ExtraArgs={'ACL': 'public-read'})
+            s3_img_url = f'https://kr.object.ncloudstorage.com/{bucket_name}/creativity/image/{user_id}/{child_id}/{level_name}.png'
+            insert_ql2 = f''' INSERT INTO au_creative_behavior (child_id, level_id,level_number, file_name, create_date, creativity_behavior_s3url) VALUES ("{child_id}", "{level_id}","{level_num}","{level_name}.png","{now_asia_seoul}","{s3_img_url}") '''
+            insert_tuple = sql_executer(insert_ql2)
+
+            # insert_ql20 = f''' INSERT INTO zz_creativity_rate (user_id, child_id, level_number, create_date, creativity_behavior_s3url) VALUES ("{user_id}","{child_id}","{level_num}","{now_asia_seoul}","{s3_img_url}") '''
+            insert_ql20 = f''' INSERT INTO zz_creativity_rate (user_id, child_id, level_number, create_date, creativity_behavior_s3url,rate_standard) VALUES ("{user_id}","{child_id}","{level_num}","{now_asia_seoul}","{s3_img_url}", "{rate_standard}") '''
+            insert_tuple = sql_executer(insert_ql20)
+
+            json_response = default_result(200,True,'sound(wav) file and image(png) file inserted successfully')
+            return Response(json_response, status = 200)            
+
+
+        json_response = default_result(200,True,'creativity behavior response successfully')
+        return Response(json_response, status = 200)
+
+    except pymysql.err.OperationalError:
+        json_response = default_result(400,False,'DB table insert error ')
+        return Response(json_response, status = 400)
+    except pymysql.err.IntegrityError:
+        json_response = default_result(400,False,'DB table integrity error')
+        return Response(json_response, status = 400)        
+    except botocore.exceptions.BotoCoreError as e:
+        json_response = default_result(400,False,'s3 upload problem')
+        return Response(json_response, status = 400)        
+    except:
+        json_response = default_result(400,False,'unknown problem')
+        return Response(json_response, status = 400)   
+
+    json_response = default_result(400,False,'creative behavior insert False')
+    return Response(json_response, status = 400)
