@@ -36,12 +36,14 @@ from .views import content_detail_revise
 
 from .views import creativity_charsi_list
 from .views import creativity_file_save
+from .views import creativity_file_save2
 
 from .views import lesson_list
 from .views import lesson_upload
 from .views import lesson_delete
 
 from .views import creativity_behavior_list
+from .views import creativity_behavior_list_app
 from .views import creativity_behavior_detail_list
 from .views import creativity_behavior_valuate
 
@@ -87,10 +89,13 @@ urlpatterns = [
     path('api/content-detail-revise', content_detail_revise, name='content_detail_revise'),
 
     path('api/creativity-charsi-list', creativity_charsi_list, name='creativity_charsi_list'),    
-    path('api/creativity-file-save', creativity_file_save, name='creativity_file_save'),
+    path('api/creativity-file-save', creativity_file_save2, name='creativity_file_save'),
 
     path('api/creativity-behavior-list', creativity_behavior_list, name='creativity_behavior_list'),
+    path('api/creativity-behavior-list-app',creativity_behavior_list_app, name='creativity_behavior_list_app'),
+
     path('api/creativity-behavior-detail-list',creativity_behavior_detail_list, name='creativity_behavior_detail_list'),
+
 # 평가하기
     path('api/creativity-behavior-valuate',creativity_behavior_valuate, name='creativity_behavior_valuate'),
 ]
